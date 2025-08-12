@@ -1,10 +1,72 @@
-# Python-generated files
+# Python
 __pycache__/
 *.py[oc]
+*.pyc
+*.pyd
+*.pyo
+*.so
+.Python
 build/
+develop-eggs/
 dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
 wheels/
-*.egg-info
+*.egg-info/
+.installed.cfg
+*.egg
 
-# Virtual environments
+# Virtual Environment
 .venv
+venv/
+env/
+ENV/
+
+# Playwright
+**/test-results/
+**/playwright-report/
+**/playwright/.cache/
+**/playwright/.local-browsers/
+**/playwright/.local-ms-playwright/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Test artifacts
+**/screenshots/
+**/test-reports/
+**/allure-results/
+**/allure-report/
+**/coverage/
+
+# Local development
+.pytest_cache/
+.mypy_cache/
