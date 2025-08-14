@@ -1,7 +1,7 @@
 """Test cases for XSS protection in Expense Type search functionality."""
 import pytest
 import re
-from playwright.sync_api import expect
+from playwright.sync_api import expect, Browser, BrowserContext
 from pages.expense_types.expense_types_page import ExpenseTypesPage
 
 class TestExpenseTypeXSSSearch:
@@ -9,6 +9,7 @@ class TestExpenseTypeXSSSearch:
     
     @pytest.fixture(autouse=True)
     def setup_teardown(self, logged_in_page):
+        """Setup and teardown for each test."""
         self.page = logged_in_page
         self.expense_types_page = ExpenseTypesPage(self.page)
         
@@ -16,10 +17,10 @@ class TestExpenseTypeXSSSearch:
         self.expense_types_page.navigate()
         self.page.wait_for_load_state("networkidle")
         
-        # Setup complete, run the test
+        # Setup complete
         yield
         
-        # Teardown - ensure clean state after test
+        # Teardown - ensure clean state after all tests
         try:
             # Clear any search queries
             search_input = self.page.get_by_placeholder("Search expense types...")

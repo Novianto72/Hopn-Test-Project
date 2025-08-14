@@ -12,12 +12,18 @@ class TestExpenseTypeValidation:
         expense_types_page.navigate()
         expense_types_page.click_new_expense_type()
         
-        # Try to submit without filling anything
-        expense_types_page.submit_form()
+        # Try to submit without filling anything - expect client-side validation
+        expense_types_page.submit_form(expect_validation_error=True)
         
         # Verify the modal remains open when required fields are empty
         modal = expense_types_page.get_modal_create_new_expense_type()
         expect(modal).to_be_visible()
+        
+        # Verify validation error messages are shown for required fields
+        # Note: Add specific selectors for your error messages if available
+        # Example:
+        # expect(page.get_by_text("Name is required")).to_be_visible()
+        # expect(page.get_by_text("Cost Center is required")).to_be_visible()
         
         # Close the modal by clicking the Cancel button
         modal.get_by_role("button", name="Cancel").click()
@@ -141,8 +147,8 @@ class TestExpenseTypeValidation:
         # Enter only whitespace in the name field
         expense_types_page.fill_name_field("   ")
         
-        # Submit the form
-        expense_types_page.submit_form()
+        # Submit the form - expect client-side validation
+        expense_types_page.submit_form(expect_validation_error=True)
         
         # Verify the modal remains open (form was not submitted)
         modal = expense_types_page.get_modal_create_new_expense_type()

@@ -1,6 +1,6 @@
 """Test cases for XSS protection in Expense Type creation (Name field)."""
 import pytest
-from playwright.sync_api import expect
+from playwright.sync_api import expect, Browser, BrowserContext
 from pages.expense_types.expense_types_page import ExpenseTypesPage
 from pages.cost_centers.cost_centers_page import CostCentersPage
 import time
@@ -11,6 +11,7 @@ class TestExpenseTypeXSSNameCreation:
     
     @pytest.fixture(autouse=True)
     def setup_teardown(self, logged_in_page):
+        """Setup and teardown for each test."""
         self.page = logged_in_page
         self.expense_types_page = ExpenseTypesPage(self.page)
         self.cost_centers_page = CostCentersPage(self.page)
@@ -39,6 +40,10 @@ class TestExpenseTypeXSSNameCreation:
             
         except Exception as e:
             print(f"Teardown warning: {str(e)}")
+            
+        # Close any extra pages that might have been opened
+        for context in self.page.context.pages[1:]:
+            context.close()
     
     def _create_normal_cost_center(self):
         """Helper method to create a normal cost center for testing."""

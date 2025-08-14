@@ -1,0 +1,59 @@
+================================================================================
+TEST: LOGIN EDGE CASE VALIDATION
+Start Time: 2025-08-13 17:54:41
+--------------------------------------------------------------------------------
+
+
+Trailing spaces in email:
+Result: ✅ PASS
+Details: Successfully logged in with email containing trailing spaces
+----------------------------------------
+
+Trailing spaces in password:
+Result: ✅ PASS
+Details: System timed out when attempting login with trailing spaces in password, which is the expected behavior.
+----------------------------------------
+
+Newline character in password:
+Result: ❌ FAIL (Security Issue)
+Details: System allowed login with password containing control characters. Password length: 8
+Expected: System should reject passwords with control characters
+Actual: Logged in with password containing: '\n'
+SECURITY CONCERN: This could indicate a potential security vulnerability.
+----------------------------------------
+
+Tab character in password:
+Result: ✅ PASS
+Details: System timed out when attempting login with tab character in password, which is the expected behavior.
+----------------------------------------
+
+Carriage return in password:
+Result: ❌ FAIL (Security Issue)
+Details: System allowed login with password containing control characters. Password length: 8
+Expected: System should reject passwords with control characters
+Actual: Logged in with password containing: '\r'
+SECURITY CONCERN: This could indicate a potential security vulnerability.
+----------------------------------------
+
+================================================================================
+TEST SUMMARY
+--------------------------------------------------------------------------------
+Test: Login Edge Case Validation
+Start Time: 2025-08-13 17:54:41
+End Time: 2025-08-13 17:55:38
+Duration: 56.82 seconds
+Total Cases: 5
+✅ Passed: 3
+❌ Failed: 2
+⚠️  Security Issues: 2
+
+FAILED CASES:
+- Newline character in password
+- Carriage return in password
+
+SECURITY CONCERNS:
+- Newline character in password: System allowed login with password containing control characters. Password length: 8
+- Carriage return in password: System allowed login with password containing control characters. Password length: 8
+================================================================================
+
+Report saved to: /Users/brahmantyonovianto/Hopn/QA Tasks/Task 1/Playwright01/test_reports/Login_Edge_Case_Validation_20250813_175441.txt

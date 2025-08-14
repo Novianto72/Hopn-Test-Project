@@ -1,15 +1,16 @@
-"""Test cases for XSS protection in Expense Type creation (Cost Center dropdown)."""
+"""Test cases for XSS protection in Expense Type creation form (Cost Center field)."""
 import pytest
-import time
-from playwright.sync_api import expect
+from playwright.sync_api import expect, Browser, BrowserContext
 from pages.expense_types.expense_types_page import ExpenseTypesPage
 from pages.cost_centers.cost_centers_page import CostCentersPage
+import time
 
 class TestExpenseTypeXSSCostCenterCreation:
-    """Test cases for XSS protection when selecting Cost Center in Expense Type creation."""
+    """Test cases for XSS protection in Expense Type creation form (Cost Center field)."""
     
     @pytest.fixture(autouse=True)
     def setup_teardown(self, logged_in_page):
+        """Setup and teardown for each test."""
         self.page = logged_in_page
         self.expense_types_page = ExpenseTypesPage(self.page)
         self.cost_centers_page = CostCentersPage(self.page)
@@ -48,13 +49,17 @@ class TestExpenseTypeXSSCostCenterCreation:
         # We'll create cost centers one at a time in the test
         self.created_cost_centers = []
         
+        # Setup: Create a normal cost center for testing
+        self.normal_cost_center_name = f"Test Cost Center {int(time.time())}"
+        self._create_normal_cost_center()
+        
         # Navigate to expense types page
         self.expense_types_page.navigate()
         
-        # Setup complete, run the test
+        # Setup complete
         yield
         
-        # Teardown - ensure clean state after test
+        # Teardown - ensure clean state after all tests
         try:
             # Navigate to cost centers page to clean up
             self.cost_centers_page.navigate()
@@ -63,10 +68,11 @@ class TestExpenseTypeXSSCostCenterCreation:
             for cc_name in self.created_cost_centers:
                 if self.cost_centers_page.is_item_in_table(cc_name):
                     self.cost_centers_page.delete_item(cc_name)
-            
-            # Navigate back to expense types page to clean up any test expense types
-            self.expense_types_page.navigate()
-            
+                    
+            # Delete the test cost center if it exists
+            if self.cost_centers_page.is_item_in_table(self.normal_cost_center_name):
+                self.cost_centers_page.delete_item(self.normal_cost_center_name)
+                
         except Exception as e:
             print(f"Teardown warning: {str(e)}")
     
