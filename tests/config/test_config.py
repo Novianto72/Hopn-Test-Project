@@ -27,7 +27,7 @@ CREDENTIALS = {
 # Test execution configuration
 class TestConfig:
     """Test execution configuration."""
-    HEADLESS = True
+    HEADLESS = False
     SLOW_MO = 100  # milliseconds
     TIMEOUT = 30000  # milliseconds
     VIEWPORT = {"width": 1440, "height": 900}  # MacBook Pro 14-inch friendly viewport

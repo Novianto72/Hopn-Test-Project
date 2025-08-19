@@ -5,10 +5,16 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "playwright>=1.52.0",
+    "playwright",
+    "python-dotenv",
 ]
 
 [project.optional-dependencies]
 test = [
     "pytest-rerunfailures>=15.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest-playwright>=0.7.0",
 ]
