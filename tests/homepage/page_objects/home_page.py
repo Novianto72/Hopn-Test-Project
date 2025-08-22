@@ -49,6 +49,18 @@ class HomePage:
         # Forms
         EMAIL_INPUT = "input[type='email']"
         
+        # Book a Demo Section
+        BOOK_DEMO_SECTION = "section#book-a-demo"
+        BOOK_DEMO_FORM = "section#book-a-demo form"
+        BOOK_DEMO_FIELDS = {
+            'full_name': "input[name='fullName']",
+            'email': "input[type='email']",
+            'mobile_number': "input[name='mobileNumber']",
+            'contact_method': "select[name='favoritConnectionMethod']",
+            'message': "textarea[name='message']"
+        }
+        BOOK_DEMO_BUTTON = "section#book-a-demo button[type='submit']"
+        
         # Footer
         FOOTER_LINKS = {
             'privacy': "footer a[href*='privacy']",
@@ -138,3 +150,54 @@ class HomePage:
                 timeToInteractive: performance.timing.domInteractive - performance.timing.navigationStart
             };
         }""")
+        
+    # Book Demo Section Methods
+    def navigate_to_book_demo_section(self):
+        """Scroll to the Book a Demo section."""
+        demo_section = self.page.locator(self.locators.BOOK_DEMO_SECTION)
+        demo_section.scroll_into_view_if_needed()
+        return demo_section
+        
+    def fill_demo_form(self, **form_data):
+        """Fill out the demo request form.
+        
+        Args:
+            **form_data: Dictionary containing form field data
+                Expected keys: full_name, email, mobile_number, contact_method, message
+        """
+        fields = self.locators.BOOK_DEMO_FIELDS
+        
+        if 'full_name' in form_data:
+            self.page.locator(fields['full_name']).fill(form_data['full_name'])
+        if 'email' in form_data:
+            self.page.locator(fields['email']).fill(form_data['email'])
+        if 'mobile_number' in form_data:
+            self.page.locator(fields['mobile_number']).fill(str(form_data['mobile_number']))
+        if 'contact_method' in form_data:
+            self.page.locator(fields['contact_method']).select_option(form_data['contact_method'])
+        if 'message' in form_data:
+            self.page.locator(fields['message']).fill(form_data['message'])
+    
+    def submit_demo_form(self):
+        """Submit the demo request form."""
+        self.page.locator(self.locators.BOOK_DEMO_BUTTON).click()
+        
+    def is_form_valid(self):
+        """Check if the form is valid (all required fields are filled correctly)."""
+        # Check required fields
+        required_fields = [
+            self.locators.BOOK_DEMO_FIELDS['full_name'],
+            self.locators.BOOK_DEMO_FIELDS['email'],
+            self.locators.BOOK_DEMO_FIELDS['mobile_number']
+        ]
+        
+        for field in required_fields:
+            if not self.page.locator(field).input_value().strip():
+                return False
+                
+        # Basic email validation
+        email = self.page.locator(self.locators.BOOK_DEMO_FIELDS['email']).input_value()
+        if '@' not in email or '.' not in email:
+            return False
+            
+        return True
