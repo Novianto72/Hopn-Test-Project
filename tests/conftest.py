@@ -2,26 +2,31 @@ import re
 import pytest
 import time
 from pathlib import Path
-from playwright.sync_api import Page, expect, sync_playwright
-from typing import Dict, Any, Optional
-from tests.config.test_config import URLS
-
-# Define HOME_URL from URLS
-HOME_URL = URLS["HOME"]
-
-# Import configuration from the new config module
+from typing import Dict, Any, Optional, Generator
+from playwright.sync_api import (
+    Browser, 
+    BrowserContext, 
+    Page, 
+    BrowserType, 
+    Playwright, 
+    sync_playwright,
+    expect
+)
 from tests.config.test_config import (
+    TestConfig,
     URLS,
     CREDENTIALS,
-    TestConfig,
-    get_environment_config
+    BASE_URL
 )
+from tests.utils.screenshot_utils import take_screenshot
 
-# Define URL constants from URLS
+# Constants
 LOGIN_URL = URLS["LOGIN"]
+LOGOUT_URL = f"{BASE_URL}/logout"
+HOME_URL = URLS["HOME"]
 
 # Authentication logic
-def authenticate(page: Page, credentials: Optional[Dict[str, str]] = None, test_name: str = "auth"):
+def authenticate(page: Page, credentials: Optional[Dict[str, str]] = None, test_name: str = "auth") -> bool:
     """
     Authenticate user with given credentials
     
@@ -29,96 +34,117 @@ def authenticate(page: Page, credentials: Optional[Dict[str, str]] = None, test_
         page: Playwright page object
         credentials: Dictionary containing 'email' and 'password' keys
         test_name: Name of the test for screenshot naming
+        
+    Returns:
+        bool: True if authentication was successful
     """
-    from tests.utils.screenshot_utils import take_screenshot
-    
-    credentials = credentials or CREDENTIALS["DEFAULT"]
+    # Use default credentials if none provided
+    if not credentials:
+        credentials = CREDENTIALS["DEFAULT"]
     
     try:
-        # Navigate to login page with retry
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                page.goto(URLS["LOGIN"], timeout=60000)
-                break
-            except Exception as e:
-                if attempt == max_retries - 1:
-                    # Take screenshot before raising the exception
-                    take_screenshot(page, f"{test_name}_page_load_failure", "common")
-                    raise
-                print(f"Login page load attempt {attempt + 1} failed, retrying...")
-                time.sleep(2)
+        # Navigate to login page
+        page.goto(LOGIN_URL, wait_until="domcontentloaded")
         
-        # Fill in login form
-        page.get_by_label("Email").fill(credentials["email"])
-        page.get_by_label("Password").fill(credentials["password"])
+        # Wait for login form to be visible
+        page.wait_for_selector('input[name="email"]', state="visible", timeout=10000)
         
-        # Take screenshot before login
-        take_screenshot(page, f"{test_name}_before_login", "common")
+        # Fill in credentials
+        page.fill('input[name="email"]', credentials["email"])
+        page.fill('input[name="password"]', credentials["password"])
         
-        # Click login
-        page.get_by_role("button", name="Login").click()
+        # Click login button
+        page.click('button[type="submit"]')
         
-        # Wait for successful login
+        # Wait for navigation to complete
         try:
-            page.wait_for_url(URLS["DASHBOARD"], timeout=30000)
-            # Take screenshot after successful login
-            take_screenshot(page, f"{test_name}_after_login", "common")
+            page.wait_for_url("**/dashboard", timeout=10000)
             return True
         except Exception as e:
-            # Take screenshot if login fails
-            take_screenshot(page, f"{test_name}_login_failed", "common")
-            raise Exception(f"Failed to verify successful login: {e}")
-        
+            # Check for login error
+            error_selector = '.MuiAlert-filledError, [data-testid="error-message"]'
+            if page.is_visible(error_selector):
+                error_text = page.text_content(error_selector)
+                print(f"Login failed: {error_text}")
+            return False
+            
     except Exception as e:
-        error_msg = f"Authentication failed: {e}"
-        print(error_msg)
-        # Take screenshot of the error state
-        take_screenshot(page, f"{test_name}_auth_error", "common")
-        raise Exception(error_msg)
-        raise
+        print(f"Authentication error: {str(e)}")
+        # Take screenshot on error
+        take_screenshot(page, f"{test_name}_auth_error", "auth")
+        return False
 
 # This fixture provides a browser instance
 @pytest.fixture(scope="function")
-def browser():
-    with sync_playwright() as p:
-        browser = p.chromium.launch(
-            headless=TestConfig.HEADLESS,
-            slow_mo=TestConfig.SLOW_MO
-        )
-        yield browser
-        browser.close()
+def browser() -> Generator[Browser, None, None]:
+    """
+    Create a new browser instance for each test.
+    """
+    playwright = sync_playwright().start()
+    
+    # Launch browser with options
+    browser = getattr(playwright, TestConfig.BROWSER).launch(
+        headless=TestConfig.HEADLESS,
+        slow_mo=TestConfig.SLOW_MO,
+        args=[
+            '--disable-gpu',
+            '--no-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-setuid-sandbox',
+            '--disable-web-security',
+            '--disable-features=IsolateOrigins,site-per-process',
+            '--disable-site-isolation-trials'
+        ]
+    )
+    
+    yield browser
+    
+    # Cleanup
+    browser.close()
+    playwright.stop()
 
 # This fixture provides a new page for each test with consistent settings
 @pytest.fixture(scope="function")
 def page(browser, request):
+    # Ensure browser is properly initialized
+    if not browser:
+        raise ValueError("Browser not initialized")
+        
+    # Create test results directories if they don't exist
+    test_results_dir = Path("test_results")
+    videos_dir = test_results_dir / "videos"
+    
+    if not test_results_dir.exists():
+        test_results_dir.mkdir()
+    
+    # Create a new context with consistent settings
     context = browser.new_context(
         viewport=TestConfig.VIEWPORT,
-        ignore_https_errors=True
+        locale='en-US',
+        timezone_id='America/Los_Angeles',
+        permissions=['geolocation'],
+        ignore_https_errors=True,
+        record_video_dir=str(videos_dir) if TestConfig.RECORD_VIDEO else None,
+        record_video_size={"width": 1920, "height": 1080} if TestConfig.RECORD_VIDEO else None
     )
     
-    # Set default timeout for all actions
-    context.set_default_timeout(TestConfig.TIMEOUT)
-    
-    # Start tracing
-    context.tracing.start(screenshots=True, snapshots=True, sources=True)
-    
+    # Create a new page
     page = context.new_page()
     
-    # Set test-specific attributes
-    page.test_name = request.node.name.replace("[", "_").replace("]", "_")
+    # Set default timeout
+    page.set_default_timeout(TestConfig.DEFAULT_TIMEOUT)
     
+    # Set default navigation timeout
+    page.set_default_navigation_timeout(TestConfig.NAVIGATION_TIMEOUT)
+    
+    # Set test name for better error messages and screenshots
+    test_name = request.node.name
+    page.test_name = test_name
+    
+    # Yield the page to the test
     yield page
     
-    # Save trace on test failure
-    test_outcome = request.node.rep_call.passed if hasattr(request.node, 'rep_call') else False
-    if not test_outcome:
-        trace_path = f"test-results/trace-{page.test_name}.zip"
-        Path("test-results").mkdir(exist_ok=True)
-        context.tracing.stop(path=trace_path)
-    else:
-        context.tracing.stop()
-    
+    # Close the context after the test
     context.close()
 
 # This fixture provides a logged-in page
@@ -142,28 +168,21 @@ def logged_in_page(page: Page, request):
        def test_something(self, logged_in_page):
            # Uses DEFAULT_CREDENTIALS
     """
-    from tests.utils.screenshot_utils import take_screenshot
+    # Get test class instance if it exists
+    test_class = getattr(request, "instance", None)
     
-    # Get test name for screenshots
-    test_name = request.node.name
-    test_type = "common"
-    
-    # Try to determine test type from the path
-    if hasattr(request.node, 'module'):
-        module_path = request.node.module.__file__
-        if 'cost_centers' in module_path:
-            test_type = "cost_centers"
-        elif 'expense_types' in module_path:
-            test_type = "expense_types"
-    
-    # Check if test class has credentials attribute
-    if hasattr(request.instance, 'credentials'):
-        credentials = request.instance.credentials
-    # Check if credentials were passed as a fixture parameter
+    # Get credentials from test class or use default
+    if hasattr(test_class, 'credentials'):
+        credentials = test_class.credentials
     elif 'credentials' in request.fixturenames:
+        # Get credentials from fixture if it's a parameter
         credentials = request.getfixturevalue('credentials')
     else:
+        # Use default credentials
         credentials = None
+    
+    # Get test name for logging and screenshots
+    test_name = request.node.name
     
     # Authenticate
     try:
@@ -172,85 +191,50 @@ def logged_in_page(page: Page, request):
             pytest.fail("Failed to authenticate")
         
         # Take screenshot after successful login
-        take_screenshot(page, f"{test_name}_logged_in", test_type)
+        from tests.utils.screenshot_utils import take_screenshot
+        take_screenshot(page, f"{test_name}_logged_in", "login")
         
         # Return the logged-in page
         yield page
         
     except Exception as e:
         # Take screenshot on failure
-        take_screenshot(page, f"{test_name}_setup_failed", test_type)
-        raise
+        take_screenshot(page, f"{test_name}_setup_failed", "error")
+        raise Exception(f"Test setup failed: {str(e)}")
     
     finally:
-        # Cleanup - take screenshot before logout
+        # Logout after test completes
         try:
-            take_screenshot(page, f"{test_name}_before_logout", test_type)
+            # Wait for any ongoing operations to complete
+            import time
+            time.sleep(1)
             
-            # Try different ways to find and click the logout button
-            logout_selectors = [
-                # Try exact match first
-                {'type': 'role', 'role': 'button', 'name': 'Logout', 'exact': True},
-                # Try case-insensitive match
-                {'type': 'role', 'role': 'button', 'name': re.compile('logout', re.IGNORECASE)},
-                # Try finding by text content
-                {'type': 'text', 'text': 'Logout'},
-                # Try finding by text content case-insensitive
-                {'type': 'text', 'text': re.compile('logout', re.IGNORECASE)},
-                # Try finding in user menu dropdown
-                {'type': 'dropdown', 'menu_button': '[data-testid="user-menu"]', 'item_text': 'Logout'},
-                # Try finding in profile dropdown
-                {'type': 'dropdown', 'menu_button': 'button[aria-haspopup="menu"]', 'item_text': 'Logout'}
-            ]
+            # Try to navigate to logout URL if it exists
+            try:
+                page.goto(LOGOUT_URL, timeout=10000)
+                page.wait_for_load_state("networkidle")
+            except Exception as e:
+                print(f"Failed to navigate to logout URL: {e}")
             
-            logged_out = False
-            for selector in logout_selectors:
-                try:
-                    if selector['type'] == 'role':
-                        button = page.get_by_role(
-                            selector['role'], 
-                            name=selector['name'],
-                            exact=selector.get('exact', False)
-                        ).first
-                        if button.is_visible():
-                            button.click()
-                            logged_out = True
-                            break
-                    elif selector['type'] == 'text':
-                        button = page.get_by_text(selector['text']).first
-                        if button.is_visible():
-                            button.click()
-                            logged_out = True
-                            break
-                    elif selector['type'] == 'dropdown':
-                        menu_button = page.locator(selector['menu_button']).first
-                        if menu_button.is_visible():
-                            menu_button.click()
-                            # Wait for dropdown to appear
-                            page.wait_for_selector('[role="menu"]', state='visible', timeout=2000)
-                            # Find and click the logout item
-                            logout_item = page.get_by_role('menuitem', name=re.compile(selector['item_text'], re.IGNORECASE)).first
-                            if logout_item.is_visible():
-                                logout_item.click()
-                                logged_out = True
-                                break
-                except Exception as e:
-                    continue
+            # Clear session storage and cookies
+            page.evaluate('sessionStorage.clear()')
+            page.context.clear_cookies()
+            page.evaluate('localStorage.clear()')
             
-            if not logged_out:
-                print("Warning: Could not find logout button, attempting to clear session")
-                # Clear cookies and local storage as fallback
-                page.context.clear_cookies()
-                page.evaluate('localStorage.clear()')
-                
         except Exception as e:
             print(f"Logout failed: {e}")
+            # Take screenshot on logout failure
+            try:
+                take_screenshot(page, f"{test_name}_logout_failed", "error")
+            except Exception as screenshot_error:
+                print(f"Failed to take logout error screenshot: {screenshot_error}")
             take_screenshot(page, f"{test_name}_logout_failed", test_type)
             # Even if logout fails, we should continue with test cleanup
             try:
                 page.context.clear_cookies()
                 page.evaluate('localStorage.clear()')
-            except:
+            except Exception as e:
+                print(f"Cleanup failed: {e}")
                 pass
 
 # This fixture provides a page navigated to cost centers
@@ -290,7 +274,8 @@ def cost_centers_page(logged_in_page: Page, request):
                 page.wait_for_selector(selector, state="attached", timeout=10000)
                 found = True
                 # Wait a bit more for any dynamic content
-                page.wait_for_timeout(1000)
+                import time
+                time.sleep(1)  # Using time.sleep instead of wait_for_timeout
                 break
             except Exception as e:
                 print(f"Selector '{selector}' not found: {str(e)}")
@@ -307,7 +292,7 @@ def cost_centers_page(logged_in_page: Page, request):
         # Additional check for the page URL
         expect(page).to_have_url(URLS["COST_CENTERS"])
         
-        return page
+        yield page
         
     except Exception as e:
         # Take screenshot on failure
@@ -334,8 +319,8 @@ def pytest_runtest_makereport(item, call):
     setattr(item, f"rep_{rep.when}", rep)
 
 # This fixture provides a homepage
-@pytest.fixture
-def home_page(page: Page):
+@pytest.fixture(scope="function")
+def home_page(page: Page, logged_in_page: Page) -> Page:
     """
     Navigate to homepage with improved error handling.
     
@@ -345,11 +330,15 @@ def home_page(page: Page):
     Returns:
         Page: The page navigated to the homepage
     """
-    # Set timeouts
-    page.set_default_navigation_timeout(60000)  # 60 seconds
-    page.set_default_timeout(30000)  # 30 seconds for other operations
+    # Make sure the page is properly initialized
+    if not page:
+        raise ValueError("Page object is not properly initialized")
     
     try:
+        # Set timeouts
+        page.set_default_navigation_timeout(60000)  # 60 seconds
+        page.set_default_timeout(30000)  # 30 seconds for other operations
+        
         # Navigate to the homepage with a more reliable approach
         response = page.goto(
             HOME_URL,
@@ -376,27 +365,54 @@ def home_page(page: Page):
             print(f"Warning: Could not verify page is interactive: {str(e)}")
         
         # Small delay to ensure all dynamic content is loaded
-        page.wait_for_timeout(2000)
+        import time
+        time.sleep(2)  # Using time.sleep instead of wait_for_timeout
         
         return page
-    
+        
     except Exception as e:
         # Take a screenshot on error
-        page.screenshot(path="test-results/homepage_navigation_error.png")
+        from tests.utils.screenshot_utils import take_screenshot
+        take_screenshot(page, "homepage_navigation_error", "error")
         print(f"Error navigating to {HOME_URL}: {str(e)}")
         print(f"Page URL: {page.url}")
         print(f"Page title: {page.title()}")
         raise
 
 # Alias for logged_in_page to maintain backward compatibility
-@pytest.fixture
-def authenticated_page(logged_in_page: Page):
-    """Alias for logged_in_page to maintain backward compatibility with tests"""
+@pytest.fixture(scope="function")
+def authenticated_page(logged_in_page: Page) -> Page:
+    """
+    Alias for logged_in_page for backward compatibility
+    """
     return logged_in_page
 
 # Fixture for login page (unauthenticated)
-@pytest.fixture
-def login_page(page: Page):
-    """Provides a page navigated to the login page (unauthenticated)"""
-    page.goto(LOGIN_URL)
-    return page
+@pytest.fixture(scope="function")
+def login_page(page: Page) -> Page:
+    """
+    Provides a page navigated to the login page (unauthenticated)
+    
+    Args:
+        page: Playwright page object
+        
+    Returns:
+        Page: The page navigated to the login page
+    """
+    try:
+        # Navigate to the login page
+        page.goto(LOGIN_URL, wait_until="domcontentloaded")
+        
+        # Wait for the login form to be visible
+        page.wait_for_selector('input[name="email"]', state="visible", timeout=10000)
+        
+        from tests.utils.screenshot_utils import take_screenshot
+        take_screenshot(page, "login_page_loaded", "login")
+        
+        return page
+        
+    except Exception as e:
+        # Take a screenshot on error
+        take_screenshot(page, "login_page_error", "error")
+        print(f"Error navigating to login page: {str(e)}")
+        raise

@@ -27,10 +27,22 @@ CREDENTIALS = {
 # Test execution configuration
 class TestConfig:
     """Test execution configuration."""
-    HEADLESS = True
+    # Browser settings
+    BROWSER = "chromium"  # Options: 'chromium', 'firefox', 'webkit'
+    HEADLESS = False
     SLOW_MO = 100  # milliseconds
     TIMEOUT = 30000  # milliseconds
+    NAVIGATION_TIMEOUT = 60000  # 60 seconds
+    DEFAULT_TIMEOUT = 30000  # 30 seconds
     VIEWPORT = {"width": 1440, "height": 900}  # MacBook Pro 14-inch friendly viewport
+    
+    # Test execution settings
+    RECORD_VIDEO = False  # Set to True to record test videos
+    SCREENSHOT_ON_FAILURE = True  # Take screenshots on test failure
+    TRACE_ON = False  # Enable Playwright tracing
+    
+    # Environment settings
+    ENVIRONMENT = "dev"  # dev, staging, prod
 
 # Environment-specific configurations
 ENVIRONMENTS = {

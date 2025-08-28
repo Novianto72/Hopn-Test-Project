@@ -1,10 +1,13 @@
 import pytest
 import os
 import time
+import random
+import string
 from pathlib import Path
 from playwright.sync_api import Page, expect
 from tests.Invoices.page_object import invoices_page
 from tests.Invoices.page_object.invoices_page import InvoicesPage
+from pages.expense_types.expense_types_page import ExpenseTypesPage
 
 # Get the absolute path to the sample documents
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -26,6 +29,7 @@ class TestCreateNewInvoice:
         """Setup test environment before each test."""
         self.page = logged_in_page
         self.invoices_page = InvoicesPage(logged_in_page)
+        self.expense_types_page = ExpenseTypesPage(logged_in_page)
         
         # Navigate to the invoices page
         self.invoices_page.navigate()
@@ -44,9 +48,35 @@ class TestCreateNewInvoice:
         # Teardown: Close any open modals
         if self.invoices_page.is_overlay_visible():
             self.invoices_page.close_new_invoice_overlay()
+    
+    def create_test_expense_type(self):
+        """Create a test expense type and return its name."""
+        # Generate a unique name for the test expense type
+        random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+        expense_type_name = f"TestExpense_{random_suffix}"
+        
+        # Navigate to expense types page
+        self.expense_types_page.navigate()
+        
+        # Click on New Expense Type button
+        self.expense_types_page.click_new_expense_type()
+        
+        # Fill in the form
+        self.expense_types_page.fill_expense_type_form(expense_type_name)
+        
+        # Submit the form
+        self.expense_types_page.submit_form()
+        
+        # Navigate back to invoices page
+        self.invoices_page.navigate()
+        
+        return expense_type_name
 
     def test_create_new_invoice_with_required_fields(self):
         """Test creating a new invoice with all required fields filled."""
+        # Create a test expense type first
+        test_expense_type = self.create_test_expense_type()
+        
         # Test data
         invoice_type = "debit"  # 'debit' or 'credit'
         
@@ -57,9 +87,11 @@ class TestCreateNewInvoice:
         assert self.invoices_page.is_overlay_visible(), "New Invoice overlay is not visible"
         
         # Step 2: Fill in the required fields
-        # Using first available options for dropdowns
+        # Select the first available cost center
         selected_cost_center = self.invoices_page.select_cost_center()
-        selected_expense_type = self.invoices_page.select_expense_type()
+        
+        # Select the test expense type we just created
+        self.invoices_page.select_expense_type(test_expense_type)
         self.invoices_page.select_invoice_type(invoice_type)
         
         # Step 5: Upload the sample document

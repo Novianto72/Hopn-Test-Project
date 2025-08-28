@@ -51,7 +51,7 @@ class TestExpenseTypeXSSCostCenterCreation:
         
         # Setup: Create a normal cost center for testing
         self.normal_cost_center_name = f"Test Cost Center {int(time.time())}"
-        self._create_normal_cost_center()
+        self._create_cost_center(self.normal_cost_center_name)
         
         # Navigate to expense types page
         self.expense_types_page.navigate()
@@ -81,6 +81,11 @@ class TestExpenseTypeXSSCostCenterCreation:
     def _create_cost_center(self, name):
         """Helper method to create a cost center with proper waits"""
         print(f"Creating cost center: {name}")
+        # Navigate to the Cost Centers page first
+        self.cost_centers_page.navigate()
+        # Wait for the page to be fully loaded
+        self.page.wait_for_load_state("networkidle")
+        # Now click the New Cost Center button
         self.page.get_by_role("button", name="New Cost Center").click()
         
         # Wait for the form to be ready
