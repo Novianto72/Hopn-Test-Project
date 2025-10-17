@@ -59,6 +59,14 @@ class HomePage:
             'contact_method': "select[name='favoritConnectionMethod']",
             'message': "textarea[name='message']"
         }
+        
+        # Success message locators
+        SUCCESS_MESSAGE = {
+            'container': "div.text-center.py-12",
+            'title': "h3.text-3xl.font-bold.text-gray-900.mb-4",
+            'description': "p.text-xl.text-gray-600.mb-8",
+            'confirmation_banner': r"div.inline-flex.items-center.px-6.py-3.bg-blue-50.rounded-lg.text-\[\#11A193\].font-medium.mb-6"
+        }
         BOOK_DEMO_BUTTON = "section#book-a-demo button[type='submit']"
         
         # Footer
@@ -72,8 +80,9 @@ class HomePage:
         """Initialize with page object."""
         self.page = page
         self.locators = self.Locators()
-        # Set the URL using the page's base URL
-        self.URL = page.url if page.url != 'about:blank' else 'https://wize-invoice-dev-front.octaprimetech.com/'
+        # Set the URL using the centralized configuration
+        from tests.config.test_config import URLS
+        self.URL = page.url if page.url != 'about:blank' else URLS['HOME']
     
     # Navigation
     def load(self):
@@ -101,12 +110,36 @@ class HomePage:
         except:
             return False
     
-    def is_login_button_visible(self) -> bool:
-        """Check if the login button is visible."""
+    def is_login_button_visible(self, timeout: int = 5000) -> bool:
+        """
+        Check if the login button is visible.
+        
+        Args:
+            timeout: Maximum time to wait for the button to be visible (in ms)
+            
+        Returns:
+            bool: True if the login button is visible, False otherwise
+        """
         try:
-            expect(self.page.locator(self.locators.BUTTONS['login']).first).to_be_visible()
+            # First check if we're on the login page (which would mean we're not logged in)
+            if 'login' in self.page.url.lower():
+                return False
+                
+            # Try to find the login button with a reasonable timeout
+            login_button = self.page.locator(self.locators.BUTTONS['login']).first
+            login_button.wait_for(state='visible', timeout=timeout)
             return True
-        except:
+            
+        except Exception as e:
+            print(f"Login button not found or not visible: {str(e)}")
+            print(f"Current URL: {self.page.url}")
+            print(f"Page title: {self.page.title()}")
+            try:
+                # Take a screenshot for debugging
+                self.page.screenshot(path='test-results/login_button_not_found.png')
+                print("Screenshot saved to test-results/login_button_not_found.png")
+            except:
+                pass
             return False
     
     def get_focusable_elements(self):

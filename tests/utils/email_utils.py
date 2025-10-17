@@ -33,7 +33,8 @@ def get_latest_otp_imap(imap_host: str,
                        password: str, 
                        email_to: str, 
                        timeout_sec: int = 90,
-                       otp_regex: re.Pattern = OTP_REGEX) -> str:
+                       otp_regex: re.Pattern = OTP_REGEX,
+                       subject_filter: str = None) -> str:
     """Fetch the latest OTP code from an email using IMAP.
     
     Args:
@@ -43,6 +44,7 @@ def get_latest_otp_imap(imap_host: str,
         email_to: Email address to check OTP for (recipient)
         timeout_sec: Maximum time to wait for OTP email (in seconds)
         otp_regex: Regex pattern to match OTP in email body
+        subject_filter: Optional subject filter to match emails against
         
     Returns:
         str: The OTP code found in the email
@@ -53,35 +55,65 @@ def get_latest_otp_imap(imap_host: str,
     """
     deadline = time.time() + timeout_sec
     since = datetime.now(timezone.utc).strftime("%d-%b-%Y")  # IMAP date format
+    print(f"Searching for OTP in emails to {email_to}" + 
+          (f" with subject containing: {subject_filter}" if subject_filter else ""))
 
     while time.time() < deadline:
-        with imaplib.IMAP4_SSL(imap_host) as imap_conn:
-            imap_conn.login(username, password)
-            imap_conn.select("INBOX")
-            
-            # Search for unread messages since today
-            status, ids = imap_conn.search(None, '(UNSEEN)', 'SINCE', since)
-            if status != "OK" or not ids[0]:
-                time.sleep(2)
-                continue
-
-            # Process messages from newest to oldest
-            for msg_id in reversed(ids[0].split()):
-                _, data = imap_conn.fetch(msg_id, "(RFC822)")
-                msg = email.message_from_bytes(data[0][1])
-
-                # Check if the email is addressed to our target recipient
-                if email_to.lower() not in ",".join(msg.get_all("To", []) or []).lower():
+        try:
+            with imaplib.IMAP4_SSL(imap_host) as imap_conn:
+                imap_conn.login(username, password)
+                imap_conn.select("INBOX")
+                
+                # Build search criteria
+                search_criteria = ['UNSEEN', 'SINCE', since, 'TO', f'"{email_to}"']
+                if subject_filter:
+                    search_criteria.extend(['SUBJECT', f'"{subject_filter}"'])
+                
+                # Search for matching messages
+                status, ids = imap_conn.search(None, *search_criteria)
+                print(f"IMAP search status: {status}, found {len(ids[0].split()) if ids[0] else 0} messages")
+                
+                if status != "OK" or not ids[0]:
+                    time.sleep(2)
                     continue
 
-                # Search for OTP in the email body
-                for body in _iter_message_bodies(msg):
-                    match = otp_regex.search(body)
-                    if match:
-                        # Mark message as read
-                        imap_conn.store(msg_id, "+FLAGS", "\\Seen")
-                        return match.group(1)
-        
-        time.sleep(3)  # Wait before next check
+                # Process messages from newest to oldest
+                for msg_id in reversed(ids[0].split()):
+                    try:
+                        _, data = imap_conn.fetch(msg_id, "(RFC822)")
+                        if not data or not data[0]:
+                            continue
+                            
+                        msg = email.message_from_bytes(data[0][1])
+                        msg_subject = msg.get("Subject", "")
+                        msg_to = ",".join(msg.get_all("To", []) or [])
+                        print(f"Processing email - Subject: {msg_subject}, To: {msg_to}")
 
-    raise TimeoutError(f"OTP for {email_to} not found within {timeout_sec} seconds")
+                        # Search for OTP in the email body
+                        for body in _iter_message_bodies(msg):
+                            # Print first 100 chars of the body for debugging
+                            print(f"Email body preview: {body[:200]}...")
+                            match = otp_regex.search(body)
+                            if match:
+                                otp = match.group(1)
+                                print(f"Found OTP: {otp}")
+                                # Mark message as read
+                                imap_conn.store(msg_id, "+FLAGS", "\\Seen")
+                                return otp
+                    except Exception as e:
+                        print(f"Error processing email: {str(e)}")
+                        continue
+                        
+        except Exception as e:
+            print(f"IMAP error: {str(e)}")
+            # If there's an error, wait a bit before retrying
+            time.sleep(2)
+            continue
+            
+        time.sleep(3)  # Wait before next check
+    
+    # If we get here, we didn't find an OTP in time
+    error_msg = f"No OTP found in emails to {email_to} within {timeout_sec} seconds"
+    if subject_filter:
+        error_msg += f" with subject containing: {subject_filter}"
+    raise TimeoutError(error_msg)

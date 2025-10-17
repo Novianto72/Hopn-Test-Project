@@ -13,9 +13,12 @@ class TestCostCenterXSSSearch:
         # Navigate to cost centers page
         self.cost_centers_page.navigate()
         
+    @pytest.mark.skip(reason="Changed implementation - See test_cc_013_xss_protection.py for updated tests")
     def test_xss_in_search_field(self):
         """
         CC-012: Verify that XSS attempts in the search field are properly handled.
+        
+        Note: This test has been replaced with an improved version in test_cc_013_xss_protection.py
         """
         # Set up detection variables in the page context
         self.page.evaluate("""() => {

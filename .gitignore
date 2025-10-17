@@ -70,3 +70,43 @@ logs/
 # Local development
 .pytest_cache/
 .mypy_cache/
+
+# Test artifacts and screenshots
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.tiff
+*.pdf
+*.webp
+**/test_results/
+**/test-reports/
+**/screenshots/
+**/test_*.png
+**/test-*.png
+**/*_screenshot.png
+**/*_error.png
+**/debug_*.png
+**/before_*.png
+**/after_*.png
+**/form_*.png
+**/test_failure*.png
+**/test_error*.png
+**/test_edit_*.png
+**/test_*.html
+**/page_content.html
+
+# Sample documents and test data
+sample_doc/
+!sample_doc/README.md
+
+# Local configuration files
+.env
+.env.local
+
+# Logs
+*.log
+
+# Test reports in text format
+!**/test_reports/*.txt

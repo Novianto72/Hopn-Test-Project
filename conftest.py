@@ -25,23 +25,23 @@ def pytest_sessionfinish(session, exitstatus):
 # Configuration for login tests
 LOGIN_URL = "https://wize-invoice-dev-front.octaprimetech.com/login"
 VALID_CREDENTIALS = {
-    "email": "noviantotito72+test12@gmail.com",
-    "password": "Test@12"
+    "email": "mamado.2000@gmail.com",
+    "password": "Abc@1234"
 }
 
 # Test data for various scenarios
 INVALID_CREDENTIALS = [
     {"email": "invalid@user.com", "password": "wrongpass"},
-    {"email": "", "password": "Test@12"},
-    {"email": "noviantotito72+test12@gmail.com", "password": ""},
-    {"email": "invalid", "password": "Test@12"},
-    {"email": "noviantotito72+test12@gmail.com", "password": "123456"}
+    {"email": "", "password": "Abc@1234"},
+    {"email": "mamado.2000@gmail.com", "password": ""},
+    {"email": "invalid", "password": "Abc@1234"},
+    {"email": "mamado.2000@gmail.com", "password": "123456"}
 ]
 
 EDGE_CASE_CREDENTIALS = [
-    {"email": "noviantotito72+test12@gmail.com    ", "password": "Test@12"},  # trailing spaces
-    {"email": "noviantotito72+test12@gmail.com", "password": "Test@12    "},  # trailing spaces
-    {"email": "noviantotito72+test12@gmail.com", "password": "Test@12\n"},  # newline
-    {"email": "noviantotito72+test12@gmail.com", "password": "Test@12\t"},  # tab
-    {"email": "noviantotito72+test12@gmail.com", "password": "Test@12\r"}   # carriage return
+    {"email": "mamado.2000@gmail.com    ", "password": "Abc@1234"},  # trailing spaces
+    {"email": "mamado.2000@gmail.com", "password": "Abc@1234    "},  # trailing spaces
+    {"email": "mamado.2000@gmail.com", "password": "Abc@1234\n"},  # newline
+    {"email": "mamado.2000@gmail.com", "password": "Abc@1234\t"},  # tab
+    {"email": "mamado.2000@gmail.com", "password": "Abc@1234\r"}   # carriage return
 ]

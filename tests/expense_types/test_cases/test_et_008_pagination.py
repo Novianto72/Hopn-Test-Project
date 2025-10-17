@@ -71,12 +71,13 @@ class TestExpenseTypePagination(BaseExpenseTypeTest):
                 
             # Get initial pagination info
             initial_info = self.get_pagination_info()
-            
+            self.page.pause()
             # Test different page sizes
             for size in [5, 10, 25, 50]:
                 try:
-                    # Select the page size
-                    self.page.locator("select").select_option(str(size))
+                    # Select the page size using the more specific pagination select
+                    # Using attribute selector to avoid issues with the dot in the class name
+                    self.page.locator("select[class*='border-gray-300'][class*='px-3'][class*='py-1\\.5']").select_option(str(size))
                     
                     # Wait for the table to update
                     self.page.wait_for_timeout(1000)  # Short delay for UI update
@@ -95,7 +96,7 @@ class TestExpenseTypePagination(BaseExpenseTypeTest):
                     )
                     
                     # Verify the select value was updated
-                    current_size = int(self.page.locator("select").input_value())
+                    current_size = int(self.page.locator("select[class*='border-gray-300'][class*='px-3'][class*='py-1\\.5']").input_value())
                     if current_size != size:
                         self.take_screenshot(f'items_per_page_size_mismatch_{size}')
                         pytest.fail(f"Expected items per page to be {size}, but got {current_size}")
@@ -185,8 +186,8 @@ class TestExpenseTypePagination(BaseExpenseTypeTest):
 
     def test_direct_page_navigation(self):
         """Test navigation using available pagination controls"""
-        # First, set items per page to 10
-        self.page.locator("select").select_option("10")
+        # First, set items per page to 10 using the specific pagination select
+        self.page.locator("select[class*='border-gray-300'][class*='px-3'][class*='py-1\\.5']").select_option("10")
         self.page.wait_for_selector(".lucide-loader-circle.animate-spin", state="hidden", timeout=10000)
         
         pagination = self.get_pagination_info()
@@ -217,37 +218,70 @@ class TestExpenseTypePagination(BaseExpenseTypeTest):
     def test_pagination_state_indicators(self):
         """Verify all pagination state indicators are correct"""
         # First, ensure we're on the first page
-        first_page_btn = self.page.locator("button[title='First page']")
+        first_page_btn = self.page.locator("button.p-2.border.border-gray-300.rounded-md.bg-white.hover\\:bg-gray-50.disabled\\:opacity-50[title='First page']").first
         if first_page_btn.is_visible() and not first_page_btn.is_disabled():
             first_page_btn.click()
             self.page.wait_for_selector(".lucide-loader-circle.animate-spin", state="hidden", timeout=10000)
         
-        pagination = self.get_pagination_info()
+        # Get the current rows per page value
+        rows_per_page_select = self.page.locator("select[class*='border-gray-300']").first
+        rows_per_page = int(rows_per_page_select.input_value())
         
-        # Verify page info text shows current and total pages
-        page_info = self.page.locator("div.text-sm.font-medium.text-gray-900:has-text('Page')")
-        page_info.wait_for(state="visible")
+        # Get total items from the "Showing X of Y" text
+        showing_text = self.page.locator("text=Showing").first.text_content()
+        total_items = int(showing_text.split("of")[1].strip().split()[0])  # Extract the number after "of"
+        expected_total_pages = (total_items + rows_per_page - 1) // rows_per_page  # Ceiling division
+        
+        # Get page info (handles both mobile and desktop views)
+        page_info_desktop = self.page.locator("div.hidden.sm\\:flex div.text-sm.font-medium.text-gray-900:has-text('Page')")
+        page_info_mobile = self.page.locator("div.block.sm\\:hidden div.text-sm.font-medium.text-gray-900.text-center:has-text('Page')")
+        
+        # Check which one is visible and use that
+        page_info = page_info_desktop if page_info_desktop.is_visible() else page_info_mobile
         page_text = page_info.text_content()
-        assert f"Page {pagination['current_page']} of {pagination['total_pages']}" in page_text
+        
+        # Verify page info shows correct current and total pages
+        assert f"Page 1 of {expected_total_pages}" in page_text, \
+            f"Expected 'Page 1 of {expected_total_pages}' in page info, but got '{page_text}'"
         
         # Get navigation buttons
-        first_button = self.page.locator("button[title='First page']")
-        prev_button = self.page.locator("button[title='Previous page']")
-        next_button = self.page.locator("button[title='Next page']")
-        last_button = self.page.locator("button[title='Last page']")
+        button_selector = "button.p-2.border.border-gray-300.rounded-md.bg-white.hover\\:bg-gray-50.disabled\\:opacity-50"
+        first_button = self.page.locator(f"{button_selector}[title='First page']").first
+        prev_button = self.page.locator(f"{button_selector}[title='Previous page']").first
+        next_button = self.page.locator(f"{button_selector}[title='Next page']").first
+        last_button = self.page.locator(f"{button_selector}[title='Last page']").first
         
-        # On first page, first and previous buttons should be disabled
-        if pagination['current_page'] == 1:
-            assert first_button.is_disabled(), "First button should be disabled on first page"
-            assert prev_button.is_disabled(), "Previous button should be disabled on first page"
+        # Verify button states on first page
+        assert first_button.is_disabled(), "First button should be disabled on first page"
+        assert prev_button.is_disabled(), "Previous button should be disabled on first page"
+        
+        if expected_total_pages > 1:
             assert not next_button.is_disabled(), "Next button should be enabled when not on last page"
+            assert not last_button.is_disabled(), "Last button should be enabled when not on last page"
             
-            # If there's more than one page, last button should be enabled
-            if pagination['total_pages'] > 1:
-                assert not last_button.is_disabled(), "Last button should be enabled when not on last page"
-        
-        # On last page, next and last buttons should be disabled
-        if pagination['current_page'] == pagination['total_pages'] and pagination['total_pages'] > 1:
+            # Test navigation to last page
+            # Scroll the button into view and ensure it's clickable
+            last_button.scroll_into_view_if_needed()
+            self.page.wait_for_selector("button[title='Last page']:not([disabled])", state="visible", timeout=10000)
+            last_button.click()
+            
+            # Wait for the loading to complete and page to update
+            self.page.wait_for_selector(".lucide-loader-circle.animate-spin", state="hidden", timeout=10000)
+            self.page.wait_for_load_state("networkidle")
+            
+            # Update page info after navigation
+            page_info = page_info_desktop if page_info_desktop.is_visible() else page_info_mobile
+            page_text = page_info.text_content()
+            assert f"Page {expected_total_pages} of {expected_total_pages}" in page_text, \
+                f"Expected 'Page {expected_total_pages} of {expected_total_pages}' after navigating to last page"
+                
+            # Get fresh references to the buttons after navigation
+            first_button = self.page.locator(f"{button_selector}[title='First page']").first
+            prev_button = self.page.locator(f"{button_selector}[title='Previous page']").first
+            next_button = self.page.locator(f"{button_selector}[title='Next page']").first
+            last_button = self.page.locator(f"{button_selector}[title='Last page']").first
+            
+            # Verify button states on last page
             assert not first_button.is_disabled(), "First button should be enabled when not on first page"
             assert not prev_button.is_disabled(), "Previous button should be enabled when not on first page"
             assert next_button.is_disabled(), "Next button should be disabled on last page"

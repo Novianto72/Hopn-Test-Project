@@ -7,20 +7,22 @@ BASE_URL = "https://wize-invoice-dev-front.octaprimetech.com"
 # Application URLs
 URLS = {
     "LOGIN": f"{BASE_URL}/login",
-    "HOME": f"{BASE_URL}/",
+    "HOME": f"{BASE_URL}",
     "DASHBOARD": f"{BASE_URL}/dashboard",
-    "COST_CENTERS": f"{BASE_URL}/cost-center"
+    "COST_CENTERS": f"{BASE_URL}/cost-center",
+    "EXPENSE_TYPE": f"{BASE_URL}/expense-type",
+    "INVOICES": f"{BASE_URL}/invoices"
 }
 
 # Test credentials
 CREDENTIALS = {
     "DEFAULT": {
-        "email": "noviantotito72+test12@gmail.com",
-        "password": "Test@12"
+        "email": "mamado.2000@gmail.com",
+        "password": "Abc@1234"
     },
     "EMPTY_STATE": {
-        "email": "noviantotito72+test11@gmail.com",
-        "password": "Test@11"
+        "email": "mamado.2000+empty@gmail.com",
+        "password": "Abc@1234"
     }
 }
 
@@ -29,7 +31,7 @@ class TestConfig:
     """Test execution configuration."""
     # Browser settings
     BROWSER = "chromium"  # Options: 'chromium', 'firefox', 'webkit'
-    HEADLESS = False
+    HEADLESS = True
     SLOW_MO = 100  # milliseconds
     TIMEOUT = 30000  # milliseconds
     NAVIGATION_TIMEOUT = 60000  # 60 seconds

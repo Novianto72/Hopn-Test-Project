@@ -130,8 +130,9 @@ class TestExpenseTypeXSSCostCenterCreation:
         when creating a new expense type.
         """
         # Set up JavaScript error monitoring
-        self.page.on("pageerror", lambda err: print(f"Page error: {err}"))
-        self.page.on("console", lambda msg: print(f"Console {msg.type}: {msg.text}"))
+        # Commented out debug prints - can be re-enabled if needed
+        # self.page.on("pageerror", lambda err: print(f"Page error: {err}"))
+        # self.page.on("console", lambda msg: print(f"Console {msg.type}: {msg.text}"))
         
         # Process one payload at a time
         for i, cc_name in enumerate(self.xss_payloads):

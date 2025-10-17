@@ -120,7 +120,7 @@ class TestEditExpenseType:
             expense_types_page.wait_for_loading_animation_to_disappear()
             
             # Wait for the row to be visible and click the menu
-            menu_button = expense_types_page.page.locator("button[aria-haspopup='menu']").first
+            menu_button = expense_types_page.page.locator("button[aria-haspopup='menu']").nth(1)
             menu_button.wait_for(state='visible')
             menu_button.click()
             
@@ -196,7 +196,7 @@ class TestEditExpenseType:
             expense_types_page.search_expense_type(self.original_name)
             
             # Click the three dots menu
-            menu_button = expense_types_page.page.locator("button[aria-haspopup='menu']").first
+            menu_button = expense_types_page.page.locator("button[aria-haspopup='menu']").nth(1)
             menu_button.wait_for(state='visible')
             menu_button.click()
             
@@ -307,7 +307,7 @@ class TestEditExpenseType:
             expense_types_page.wait_for_loading_animation_to_disappear()
             
             # Click the three dots menu
-            menu_button = expense_types_page.page.locator("button[aria-haspopup='menu']").first
+            menu_button = expense_types_page.page.locator("button[aria-haspopup='menu']").nth(1)
             menu_button.wait_for(state='visible')
             menu_button.click()
             

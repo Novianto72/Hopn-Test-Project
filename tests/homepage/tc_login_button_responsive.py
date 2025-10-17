@@ -71,7 +71,14 @@ def test_login_button_visibility(home_page, width, height, device_name, should_b
 # Additional test to verify button functionality across viewports
 @pytest.mark.parametrize("width,height,device_name,should_be_visible", [v for v in VIEWPORTS if v[2] in ["desktop", "laptop"]])
 def test_login_button_functionality(home_page, width, height, device_name, should_be_visible):
-    """Test that the Login button is clickable and navigates to login page."""
+    """
+    Test that the Login button is clickable and navigates to login page.
+    
+    This test verifies that:
+    1. The login button is visible
+    2. Clicking the button navigates to the login page
+    3. The page is interactive after navigation
+    """
     # Initialize the page object
     home = HomePage(home_page)
     
@@ -83,20 +90,42 @@ def test_login_button_functionality(home_page, width, height, device_name, shoul
     home.set_viewport_size(width, height)
     home.load()
     
-    print(f"\n=== Testing Login button functionality on {device_name} ===")
+    print(f"\n=== Testing Login button functionality on {device_name} ({width}x{height}) ===")
+    
+    # Ensure we're not already on the login page
+    if 'login' in home_page.url.lower():
+        raise AssertionError("Test started on login page instead of homepage")
     
     try:
+        # Verify login button is visible first
+        assert home.is_login_button_visible(timeout=10000), "Login button should be visible before clicking"
+        
+        # Store current URL for verification
+        original_url = home_page.url
+        
         # Click the login button using the page object
+        print("Clicking login button...")
         home.click_login()
         
-        # Verify navigation to login page
+        # Wait for navigation to complete with a reasonable timeout
+        home_page.wait_for_url("**/login*", timeout=10000)
         home_page.wait_for_load_state('networkidle')
-        assert "/login" in home_page.url, "Should navigate to login page"
         
-        # Navigate back to homepage for next test
-        home_page.go_back()
-        home_page.wait_for_load_state('networkidle')
+        # Verify we navigated to the login page
+        current_url = home_page.url.lower()
+        assert "/login" in current_url, f"Expected to navigate to login page, but got: {current_url}"
+        
+        print("✓ Successfully navigated to login page")
+        
     except Exception as e:
-        # Take a screenshot if the test fails
-        home.take_screenshot(f"test_failure_{device_name}.png")
-        raise
+        # Take a screenshot for debugging
+        screenshot_path = f"test-results/login_button_failure_{device_name}_{width}x{height}.png"
+        home_page.screenshot(path=screenshot_path)
+        print(f"Screenshot saved to {screenshot_path}")
+        
+        # Log page information for debugging
+        print(f"Current URL: {home_page.url}")
+        print(f"Page title: {home_page.title()}")
+        
+        # Re-raise the exception with more context
+        raise AssertionError(f"Test failed on {device_name} ({width}x{height}): {str(e)}")

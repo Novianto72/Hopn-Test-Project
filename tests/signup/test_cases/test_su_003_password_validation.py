@@ -2,12 +2,13 @@ import pytest
 import time
 from playwright.sync_api import Page, expect
 from dotenv import load_dotenv
+import os
+from tests.config.test_config import URLS
 
-# Load environment variables from .env file
 load_dotenv()
 
 # Test configuration
-BASE_URL = "https://wize-invoice-dev-front.octaprimetech.com"
+BASE_URL = URLS['HOME']
 SIGNUP_URL = f"{BASE_URL}/create-account"
 
 @pytest.mark.regression

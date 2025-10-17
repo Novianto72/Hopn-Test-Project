@@ -7,13 +7,13 @@ from dotenv import load_dotenv
 from dataInput.signup.test_emails import get_valid_emails, get_invalid_emails
 from tests.utils.email_utils import get_latest_otp_imap
 from pages.signup.signup_page import SignUpPage
+from tests.config.test_config import URLS
 
 # Load environment variables from .env file
 load_dotenv()
 
 # Test configuration
-BASE_URL = "https://wize-invoice-dev-front.octaprimetech.com"
-SIGNUP_URL = f"{BASE_URL}/create-account"
+SIGNUP_URL = f"{URLS['HOME']}/create-account"
 
 # Email configuration
 BASE_EMAIL = "testingtito09"

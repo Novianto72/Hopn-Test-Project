@@ -26,9 +26,13 @@ LOGOUT_URL = f"{BASE_URL}/logout"
 HOME_URL = URLS["HOME"]
 
 # Authentication logic
+def log_step(step: str):
+    """Helper function to log steps with consistent formatting"""
+    print(f"\n[STEP] {step}")
+
 def authenticate(page: Page, credentials: Optional[Dict[str, str]] = None, test_name: str = "auth") -> bool:
     """
-    Authenticate user with given credentials
+    Authenticate user with given credentials with enhanced error handling and logging.
     
     Args:
         page: Playwright page object
@@ -38,40 +42,257 @@ def authenticate(page: Page, credentials: Optional[Dict[str, str]] = None, test_
     Returns:
         bool: True if authentication was successful
     """
+    log_step(f"Starting authentication for test: {test_name}")
+    
     # Use default credentials if none provided
     if not credentials:
+        log_step("Using default credentials from config")
         credentials = CREDENTIALS["DEFAULT"]
     
+    log_step(f"Attempting login with email: {credentials['email']}")
+    log_step(f"Starting URL: {page.url}")
+    
     try:
-        # Navigate to login page
-        page.goto(LOGIN_URL, wait_until="domcontentloaded")
+        # Handle logout redirect if we're on the logout page
+        if "/logout" in page.url.lower():
+            log_step("Detected logout page. Navigating to login...")
+            page.goto(LOGIN_URL, wait_until="networkidle")
+        # Navigate to login page if not already there
+        elif "/login" not in page.url.lower() and "/auth" not in page.url.lower():
+            log_step(f"Navigating to login page: {LOGIN_URL}")
+            page.goto(LOGIN_URL, wait_until="networkidle")
         
-        # Wait for login form to be visible
-        page.wait_for_selector('input[name="email"]', state="visible", timeout=10000)
+        log_step(f"Current URL: {page.url}")
+        
+        # Take initial screenshot
+        take_screenshot(page, f"{test_name}_login_page", "auth")
+        
+        # Wait for login form to be visible (with multiple possible selectors)
+        log_step("Waiting for login form...")
+        email_selectors = [
+            'input[name="email"]',
+            'input[type="email"]',
+            'input[data-testid="email"]',
+            '#email',
+            '#username',
+            'input[autocomplete="username"]'
+        ]
+        
+        email_field = None
+        for selector in email_selectors:
+            try:
+                email_field = page.wait_for_selector(selector, state="visible", timeout=3000)
+                print(f"Found email field with selector: {selector}")
+                break
+            except:
+                continue
+        
+        if not email_field:
+            raise Exception("Could not find email field on the page")
+        
+        # Find password field
+        password_selectors = [
+            'input[name="password"]',
+            'input[type="password"]',
+            'input[data-testid="password"]',
+            '#password',
+            'input[autocomplete="current-password"]'
+        ]
+        
+        password_field = None
+        for selector in password_selectors:
+            try:
+                password_field = page.wait_for_selector(selector, state="visible", timeout=2000)
+                log_step(f"Found password field with selector: {selector}")
+                break
+            except Exception as e:
+                log_step(f"Password field not found with selector {selector}: {str(e)}")
+                continue
+        
+        if not password_field:
+            raise Exception("Could not find password field on the page")
         
         # Fill in credentials
-        page.fill('input[name="email"]', credentials["email"])
-        page.fill('input[name="password"]', credentials["password"])
-        
-        # Click login button
-        page.click('button[type="submit"]')
-        
-        # Wait for navigation to complete
+        log_step("Filling in credentials...")
         try:
-            page.wait_for_url("**/dashboard", timeout=10000)
-            return True
+            email_field.fill(credentials["email"])
+            # Add a small delay to ensure the field is filled
+            page.wait_for_timeout(300)
+            password_field.fill(credentials["password"])
+            log_step("Credentials filled")
+            
+            # Take screenshot after filling credentials (masking sensitive data)
+            page.evaluate("""
+                document.querySelectorAll('input[type="password"]').forEach(el => {
+                    el.style.webkitTextSecurity = 'disc';
+                });
+            """)
+            take_screenshot(page, f"{test_name}_credentials_filled", "auth")
+            
         except Exception as e:
-            # Check for login error
-            error_selector = '.MuiAlert-filledError, [data-testid="error-message"]'
-            if page.is_visible(error_selector):
-                error_text = page.text_content(error_selector)
-                print(f"Login failed: {error_text}")
+            log_step(f"Error filling credentials: {str(e)}")
+            take_screenshot(page, f"{test_name}_fill_credentials_error", "auth")
+            return False
+        
+        # Find and click login button
+        login_button_selectors = [
+            'button[type="submit"]',
+            'button:has-text("Sign in")',
+            'button:has-text("Log in")',
+            'button:has-text("Login")',
+            'button[data-testid="login-button"]',
+            'form button[type="submit"]',
+            'button:has-text("Continue")',
+            'input[type="submit"][value*="ign" i]',
+            'button:visible',
+            'input[type="submit"]'
+        ]
+        
+        login_button = None
+        for selector in login_button_selectors:
+            try:
+                login_button = page.wait_for_selector(selector, state="visible", timeout=2000)
+                button_text = login_button.inner_text().strip()
+                log_step(f"Found login button with selector: {selector} (text: '{button_text}')")
+                break
+            except Exception as e:
+                log_step(f"Login button not found with selector {selector}: {str(e)}")
+                continue
+        
+        if not login_button:
+            log_step("Could not find login button on the page")
+            take_screenshot(page, f"{test_name}_login_button_not_found", "auth")
+            return False
+        
+        log_step("Clicking login button...")
+        try:
+            # Scroll the button into view and click
+            login_button.scroll_into_view_if_needed()
+            login_button.click(delay=100)  # Add small delay to ensure click is registered
+            log_step("Login button clicked")
+            
+            # Wait for navigation to start
+            page.wait_for_load_state("networkidle", timeout=5000)
+            
+        except Exception as e:
+            log_step(f"Error clicking login button: {str(e)}")
+            take_screenshot(page, f"{test_name}_login_click_error", "auth")
+            return False
+        
+        # Wait for navigation to complete or error to appear
+        log_step("Waiting for login to complete...")
+        try:
+            # Wait for navigation to complete with a timeout
+            page.wait_for_load_state("networkidle", timeout=15000)
+            log_step(f"Navigation complete. Current URL: {page.url}")
+            
+            # Take screenshot after navigation
+            take_screenshot(page, f"{test_name}_post_login", "auth")
+            
+            # Check for error messages first
+            error_selectors = [
+                '.MuiAlert-filledError',
+                '[data-testid="error-message"]',
+                '.error-message',
+                '.alert-error',
+                '.error',
+                '.login-error',
+                'div[role="alert"]',
+                '.ant-message-error',
+                '.error-container',
+                '.login-feedback',
+                'div[class*="error" i]',
+                'div[class*="alert" i]',
+                'div[class*="message" i]'
+            ]
+            
+            for selector in error_selectors:
+                try:
+                    error_element = page.query_selector(selector)
+                    if error_element and error_element.is_visible():
+                        error_text = error_element.inner_text().strip()
+                        if error_text:  # Only log if there's actual text
+                            log_step(f"Error message found with selector '{selector}': {error_text}")
+                            take_screenshot(page, f"{test_name}_login_error", "auth")
+                            return False
+                except Exception as e:
+                    log_step(f"Error checking selector {selector}: {str(e)}")
+                    continue
+            
+            # Check if we're on a successful page
+            success_url_indicators = [
+                'dashboard', 
+                'home', 
+                'invoices',
+                'overview',
+                'welcome'
+            ]
+            
+            current_url = page.url.lower()
+            if any(indicator in current_url for indicator in success_url_indicators):
+                log_step(f"Login successful! Current URL: {page.url}")
+                take_screenshot(page, f"{test_name}_login_success", "auth")
+                return True
+            else:
+                # Check for any success indicators in the page content
+                try:
+                    page_content = page.content().lower()
+                    success_indicators = [
+                        'welcome',
+                        'dashboard',
+                        'signed in',
+                        'successfully logged in',
+                        'my account'
+                    ]
+                    
+                    if any(indicator in page_content for indicator in success_indicators):
+                        log_step(f"Login successful (content match). Current URL: {page.url}")
+                        take_screenshot(page, f"{test_name}_login_success_content", "auth")
+                        return True
+                except Exception as e:
+                    log_step(f"Error checking page content: {str(e)}")
+                
+                log_step(f"Unexpected URL after login: {page.url}")
+                take_screenshot(page, f"{test_name}_unexpected_page", "auth")
+                return False
+            
+        except Exception as nav_error:
+            print(f"Navigation error: {str(nav_error)}")
+            print(f"Current URL: {page.url}")
+            take_screenshot(page, f"{test_name}_navigation_error", "auth")
             return False
             
     except Exception as e:
-        print(f"Authentication error: {str(e)}")
-        # Take screenshot on error
-        take_screenshot(page, f"{test_name}_auth_error", "auth")
+        error_msg = f"Authentication error: {str(e)}"
+        log_step(error_msg)
+        log_step(f"Current URL: {page.url}")
+        
+        try:
+            # Try to get page content for debugging
+            page_content = page.content()
+            log_step("Page content (first 1000 chars):")
+            print("-" * 80)
+            print(page_content[:1000])
+            print("-" * 80)
+            
+            # Take error screenshot
+            take_screenshot(page, f"{test_name}_auth_error", "auth")
+            
+            # Additional debug info
+            log_step("Cookies after error:")
+            try:
+                cookies = page.context.cookies()
+                log_step(f"Found {len(cookies)} cookies")
+                for cookie in cookies[:5]:  # Only show first 5 cookies
+                    log_step(f"- {cookie.get('name', 'no-name')}: {cookie.get('value', 'no-value')}")
+                if len(cookies) > 5:
+                    log_step(f"... and {len(cookies) - 5} more cookies")
+            except Exception as cookie_err:
+                log_step(f"Error getting cookies: {str(cookie_err)}")
+                
+        except Exception as debug_err:
+            log_step(f"Error during debug info collection: {str(debug_err)}")
+        
         return False
 
 # This fixture provides a browser instance
@@ -168,34 +389,96 @@ def logged_in_page(page: Page, request):
        def test_something(self, logged_in_page):
            # Uses DEFAULT_CREDENTIALS
     """
+    print("\n" + "="*50)
+    print(f"Setting up logged_in_page fixture for test: {request.node.name}")
+    
     # Get test class instance if it exists
     test_class = getattr(request, "instance", None)
+    print(f"Test class: {test_class.__class__.__name__ if test_class else 'None'}")
     
     # Get credentials from test class or use default
     if hasattr(test_class, 'credentials'):
+        print("Using credentials from test class")
         credentials = test_class.credentials
     elif 'credentials' in request.fixturenames:
-        # Get credentials from fixture if it's a parameter
+        print("Using credentials from fixture")
         credentials = request.getfixturevalue('credentials')
     else:
-        # Use default credentials
+        print("Using default credentials from config")
         credentials = None
+    
+    print(f"Credentials being used: {credentials}")
     
     # Get test name for logging and screenshots
     test_name = request.node.name
+    print(f"Test name: {test_name}")
+    
+    # Handle case where we're already on the logout page
+    if "/logout" in page.url:
+        print("Detected logout URL, navigating to login page...")
+        page.goto(LOGIN_URL, wait_until="domcontentloaded")
+        print(f"Navigated to login page: {page.url}")
+    
+    # Print current URL before authentication
+    print(f"Current URL before auth: {page.url}")
     
     # Authenticate
     try:
+        print("\nStarting authentication...")
         auth_result = authenticate(page, credentials, test_name=test_name)
+        print(f"Authentication result: {auth_result}")
+        
         if not auth_result:
-            pytest.fail("Failed to authenticate")
+            # Take screenshot on failure
+            take_screenshot(page, f"{test_name}_auth_failed", "auth")
+            print("Authentication failed. Page content:")
+            print("-" * 50)
+            print(page.content())
+            print("-" * 50)
+            
+            # Try to get any error messages from the page
+            error_selectors = [
+                '.MuiAlert-filledError',
+                '[data-testid="error-message"]',
+                '.error-message',
+                'div[role="alert"]',
+                '.ant-message-error'
+            ]
+            
+            for selector in error_selectors:
+                try:
+                    error_element = page.query_selector(selector)
+                    if error_element:
+                        error_text = error_element.inner_text()
+                        print(f"Found error message: {error_text}")
+                        break
+                except:
+                    continue
+                    
+            pytest.fail("Failed to authenticate. Check the logs and screenshots for details.")
         
         # Take screenshot after successful login
-        from tests.utils.screenshot_utils import take_screenshot
+        print("Authentication successful. Taking screenshot...")
         take_screenshot(page, f"{test_name}_logged_in", "login")
+        print(f"Current URL after auth: {page.url}")
+        
+        # Verify we're actually logged in by checking for a logged-in element
+        try:
+            # Adjust this selector based on your application's logged-in state indicator
+            page.wait_for_selector("div[data-testid='user-menu']", timeout=5000)
+            print("Verified logged-in state")
+        except Exception as e:
+            print(f"Warning: Could not verify logged-in state: {str(e)}")
+            take_screenshot(page, f"{test_name}_login_verification_failed", "auth")
         
         # Return the logged-in page
+        print("Returning logged-in page to test")
         yield page
+        
+    except Exception as e:
+        print(f"Unexpected error in logged_in_page fixture: {str(e)}")
+        take_screenshot(page, f"{test_name}_unexpected_error", "auth")
+        raise
         
     except Exception as e:
         # Take screenshot on failure
@@ -228,7 +511,7 @@ def logged_in_page(page: Page, request):
                 take_screenshot(page, f"{test_name}_logout_failed", "error")
             except Exception as screenshot_error:
                 print(f"Failed to take logout error screenshot: {screenshot_error}")
-            take_screenshot(page, f"{test_name}_logout_failed", test_type)
+            take_screenshot(page, f"{test_name}_logout_failed", "error")
             # Even if logout fails, we should continue with test cleanup
             try:
                 page.context.clear_cookies()
@@ -320,7 +603,7 @@ def pytest_runtest_makereport(item, call):
 
 # This fixture provides a homepage
 @pytest.fixture(scope="function")
-def home_page(page: Page, logged_in_page: Page) -> Page:
+def home_page(page: Page) -> Page:
     """
     Navigate to homepage with improved error handling.
     

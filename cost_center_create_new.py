@@ -9,9 +9,9 @@ def run(playwright: Playwright) -> None:
     page = context.new_page()
     page.goto("https://wize-invoice-dev-front.octaprimetech.com/login")
     page.get_by_role("textbox", name="Email").click()
-    page.get_by_role("textbox", name="Email").fill("noviantotito72+test12@gmail.com")
+    page.get_by_role("textbox", name="Email").fill("mamado.2000@gmail.com")
     # Note: Password should be provided via environment variable in production
-    password = os.getenv('TEST_PASSWORD', 'your_test_password_here')
+    password = os.getenv('TEST_PASSWORD', 'Abc@1234')
     page.get_by_role("textbox", name="Password").click()
     page.get_by_role("textbox", name="Password").fill(password)
     page.get_by_role("button", name="Login").click()

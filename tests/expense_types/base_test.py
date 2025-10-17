@@ -17,7 +17,8 @@ class BaseExpenseTypeTest:
         self.expense_types_page.navigate()
         
         # Verify the page is loaded
-        expect(self.page).to_have_url("https://wize-invoice-dev-front.octaprimetech.com/expense-type")
+        from tests.config.test_config import URLS
+        expect(self.page).to_have_url(URLS["EXPENSE_TYPE"])
         expect(self.page.locator("h1")).to_have_text("Expense Types")
         
         # Setup request monitoring after navigation

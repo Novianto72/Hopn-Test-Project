@@ -514,7 +514,7 @@ class ExpenseTypesPage:
         
         try:
             # Click the three dots menu
-            menu_button = self.page.locator("button[aria-haspopup='menu']").first
+            menu_button = self.page.locator("button[aria-haspopup='menu']").nth(1)
             menu_button.wait_for(state='visible')
             menu_button.click()
             

@@ -1,3 +1,4 @@
+import re
 import pytest
 from playwright.sync_api import expect, Page
 from pages.cost_centers.cost_centers_page import CostCentersPage
@@ -34,8 +35,8 @@ class TestPagination:
     #     self.cost_centers_page = CostCentersPage(logged_in_page)
     #     return self
     
-    def test_pagination_with_5_records_per_page(self, page: Page):
-        """CC-006-1: Verify pagination with 5 records per page"""
+    def login_and_navigate_to_cost_centers(self, page: Page):
+        """Helper method to perform login and navigate to Cost Centers page."""
         try:
             # Login with credentials that have data
             page.goto(URLS["LOGIN"])
@@ -46,149 +47,220 @@ class TestPagination:
             
             # Navigate to cost centers page
             page.goto(URLS["COST_CENTERS"])
-            
-            # Wait for the page to load completely
             page.wait_for_selector("h1:has-text('Cost Centers')", state="visible", timeout=10000)
+            return CostCentersPage(page)
             
-            # Wait for the table to be visible and have data
-            try:
-                # Wait for the table to be present and visible
-                table = page.locator("table")
-                table.wait_for(state="visible", timeout=10000)
-                
-                # Wait for at least one row to be present in the table
-                page.wait_for_selector("table tbody tr", state="visible", timeout=10000)
-                
-                # Verify we have data in the table
-                rows = page.locator("table tbody tr").count()
-                if rows == 0:
-                    pytest.fail("Table is present but contains no rows")
-                
-                print(f"Found {rows} rows in the cost centers table")
-                
-                # Get the pagination container with a more specific selector
-                try:
-                    pagination_container = page.locator(self.test_data["selectors"]["pagination_container"])
-                    
-                    # Check if we should expect pagination based on row count
-                    if rows > 5:
-                        # If we have more than 5 rows, pagination should be visible
-                        if not pagination_container.is_visible():
-                            # Take a screenshot to help with debugging
-                            page.screenshot(path="pagination_not_visible.png")
-                            print("Pagination container HTML:", pagination_container.inner_html())
-                            pytest.fail(f"Pagination should be visible with {rows} rows but wasn't found")
-                        else:
-                            print("Pagination container is visible as expected")
-                    else:
-                        # For 5 or fewer rows, pagination might be hidden
-                        if pagination_container.is_visible():
-                            print("Info: Pagination is visible with few rows")
-                        else:
-                            print("Info: Pagination not shown as expected with current row count")
-                            pytest.skip("Not enough rows to test pagination functionality")
-                            
-                except Exception as e:
-                    page.screenshot(path="pagination_error.png")
-                    pytest.fail(f"Error checking pagination container: {str(e)}")
-                
-            except Exception as e:
-                # Take a screenshot for debugging
-                page.screenshot(path="debug_pagination_error.png")
-                pytest.fail(f"Failed to verify cost centers table: {str(e)}")
+        except Exception as e:
+            pytest.fail(f"Failed during login/navigation: {str(e)}")
             
-            # If we get here, we have a valid table with data
-            # Now we can proceed with pagination testing
-            try:
-                # Get pagination elements
-                pagination_container = page.locator(self.test_data["selectors"]["pagination_container"])
-                rows_per_page_selector = page.locator(self.test_data["selectors"]["rows_per_page_selector"])
-                page_info = page.locator(self.test_data["selectors"]["current_page_info"])
-                
-                # Check if pagination controls are visible
-                if not pagination_container.is_visible():
-                    print("Pagination container not found. Checking if we have enough rows...")
-                    if rows > 5:  # If we have more than 5 rows, pagination should be visible
-                        pytest.fail(f"Expected pagination with {rows} rows, but pagination container not found")
-                    else:
-                        print(f"Only {rows} rows found, pagination not expected")
-                        return  # Exit the test as there's no pagination to test
-                
-                print("Pagination controls found, verifying components...")
-                
-                # Verify pagination components
-                if not rows_per_page_selector.is_visible():
-                    print("Warning: Rows per page selector not found")
-                
-                if not page_info.is_visible():
-                    print("Warning: Page info text not found")
-                
-                # Get the current page info text (e.g., "Page 1 of 8")
-                page_info_text = page_info.inner_text()
-                print(f"Current page info: {page_info_text}")
-                
-                # Example: Verify we can change rows per page
-                try:
-                    rows_per_page_selector.select_option("10")
-                    page.wait_for_load_state("networkidle")
-                    print("Successfully changed rows per page to 10")
-                except Exception as e:
-                    print(f"Warning: Could not change rows per page: {str(e)}")
-                
-            except Exception as e:
-                # If we can't determine the state, fail the test
-                print(f"Error checking pagination state: {str(e)}")
-                raise
+    def verify_pagination_controls(self, pagination_container, expected_pages: int):
+        """Verify pagination controls are present and functional."""
+        # Wait for pagination controls to be visible
+        pagination_container.wait_for(state="visible", timeout=10000)
+        
+        # Verify page info text
+        page_info = pagination_container.locator("div.text-sm.font-medium.text-gray-900:has-text('Page')")
+        assert page_info.count() > 0, "Page info text not found"
+        
+        # Verify navigation buttons
+        if expected_pages > 1:
+            next_button = pagination_container.locator('button[title="Next page"]')
+            assert next_button.count() > 0, "Next button not found"
             
-            # Set page size to 5
-            cost_centers_page = CostCentersPage(page)
-            cost_centers_page.set_page_size(5)
+    def test_pagination_with_5_records_per_page(self, page: Page):
+        """CC-006-1: Verify pagination with 5 records per page
+        
+        Test Steps:
+        1. Login and navigate to Cost Centers page
+        2. Set page size to 5 records
+        3. Verify initial pagination state
+        4. Verify number of displayed rows
+        5. Test pagination controls
+        """
+        # Take screenshot on failure
+        try:
+            # Login and navigate to Cost Centers page
+            cost_centers_page = self.login_and_navigate_to_cost_centers(page)
             
-            # Get total number of cost centers using the simpler counter method
+            # Set page size to 5 records per page and verify
+            items_per_page = 5
+            cost_centers_page.set_page_size(items_per_page)
+            
+            # Verify table is loaded
+            table = page.locator("table")
+            table.wait_for(state="visible", timeout=10000)
+            
+            # Get total number of cost centers
             counters = cost_centers_page.get_simple_counter_values()
             total_centers = int(counters['total'])
             
-            # Keep old implementation commented out for reference
-            # Old implementation:
-            # counters = cost_centers_page.get_counter_values()
-            # total_centers = int(counters['total'])
-            
             # Calculate expected number of pages
-            expected_pages = (total_centers + 4) // 5  # Ceiling division
-            print(f"Total cost centers: {total_centers}")
-            print(f"Expected pages: {expected_pages}")
+            expected_pages = (total_centers + items_per_page - 1) // items_per_page
+            print(f"Total cost centers: {total_centers}, Expected pages: {expected_pages}")
             
-            # Add a small delay to ensure the page size change is fully processed
+            # Get pagination container
+            pagination_container = page.locator("div.bg-gray-50.px-3.py-4.border-t.border-gray-200")
+            
+            # Verify initial pagination state
+            self.verify_pagination_controls(pagination_container, expected_pages)
+            
+            # Get page info
+            page_info = pagination_container.locator("div.text-sm.font-medium.text-gray-900:has-text('Page')").first
+            page_info_text = page_info.inner_text()
+            print(f"Page info text: {page_info_text}")
+            
+            # Parse and verify page info
+            match = re.match(r'Page (\d+) of (\d+)', page_info_text)
+            assert match, f"Could not parse page info: {page_info_text}"
+            
+            current_page = int(match.group(1))
+            total_pages = int(match.group(2))
+            
+            # Verify initial page state
+            assert current_page == 1, f"Should start on page 1, but got page {current_page}"
+            assert total_pages == expected_pages, \
+                f"Expected {expected_pages} total pages, but got {total_pages}"
+            
+            # Verify number of rows matches expected items per page
+            rows = page.locator("table tbody tr")
+            actual_row_count = rows.count()
+            expected_row_count = min(items_per_page, total_centers)
+            assert actual_row_count == expected_row_count, \
+                f"Expected {expected_row_count} rows, but found {actual_row_count}"
+            
+            # Store pagination info for reference
+            pagination_info = {
+                'current_page': current_page,
+                'total_pages': total_pages,
+                'items_per_page': items_per_page,
+                'total_items': total_centers
+            }
+            print(f"Pagination info: {pagination_info}")
+            # Test pagination navigation if there are multiple pages
+            #if expected_pages > 1:
+            #    self.test_pagination_navigation(page, pagination_container, total_centers, items_per_page)
+                
+        except Exception as e:
+            # Take screenshot on failure
+            screenshot = page.screenshot(full_page=True)
+            print(f"Test failed with error: {str(e)}")
+            print(f"Page URL: {page.url}")
+            print("Screenshot taken")
+            raise
+                
+    def wait_and_click_button(self, page: Page, button_locator, button_name="button"):
+        """Helper method to wait for button to be ready and click it.
+        
+        Args:
+            page: Playwright Page object
+            button_locator: Locator for the button to click
+            button_name: Name of the button for logging purposes
+        """
+        try:
+            print(f"Waiting for {button_name} button to be visible and enabled...")
+            # Wait for button to be visible and enabled
+            button_locator.wait_for(state="visible", timeout=10000)
+            button_locator.wait_for(state="enabled", timeout=10000)
+            
+            # Scroll the button into view
+            print("Scrolling button into view...")
+            button_locator.scroll_into_view_if_needed()
+            
+            # Add a small delay to ensure everything is stable
+            print("Waiting for UI to stabilize...")
             page.wait_for_timeout(1000)
             
-            # Get current pagination info with debug
-            try:
-                pagination = cost_centers_page.get_pagination_info()
-                print(f"Actual pagination info from UI: {pagination}")
-                print(f"Page element text: {cost_centers_page.page.evaluate('document.querySelector("div.text-sm.font-medium.text-gray-900").textContent')}")
-            except Exception as e:
-                print(f"Error getting pagination info: {str(e)}")
-                # Screenshot functionality has been disabled as per user request
-                # print("Taking screenshot of pagination area...")
-                # page.screenshot(path="pagination_debug.png", full_page=True)
-                raise
+            # Click the button
+            print(f"Clicking {button_name} button...")
+            button_locator.click()
             
-            # Verify pagination shows correct number of pages
-            assert pagination['current'] == 1, "Should start on page 1"
-            assert pagination['total'] == expected_pages, f"Expected {expected_pages} pages, got {pagination['total']}"
-            
-            # Verify pagination shows correct number of pages
-            assert pagination['current'] == 1, "Should start on page 1"
-            assert pagination['total'] == expected_pages, f"Expected {expected_pages} pages, got {pagination['total']}"
-            
-            print(f"Total cost centers: {total_centers}")
-            print(f"Expected pages: {expected_pages}")
-            print(f"Actual pages: {pagination['total']}")
+            # Wait for any resulting navigation/updates
+            page.wait_for_load_state("networkidle")
+            page.wait_for_timeout(1000)  # Additional wait for UI updates
             
         except Exception as e:
-            print(f"Test failed: {str(e)}")
-            # Screenshot functionality has been disabled as per user request
-            # page.screenshot(path="test_pagination_5_records_failure.png")
+            # Take screenshot for debugging
+            screenshot = page.screenshot(full_page=True)
+            print(f"Failed to click {button_name}. Screenshot taken.")
+            print(f"Button state - visible: {button_locator.is_visible()}, enabled: {button_locator.is_enabled()}")
+            raise Exception(f"Failed to click {button_name}: {str(e)}")
+
+    def test_pagination_navigation(self, page: Page, pagination_container, total_items: int, items_per_page: int):
+        """Test pagination navigation functionality.
+        
+        Args:
+            page: Playwright Page object
+            pagination_container: Locator for the pagination container
+            total_items: Total number of items
+            items_per_page: Number of items per page
+        """
+        try:
+            # Get navigation buttons - using index 1 as there are multiple matches
+            next_button = page.locator('//button[@title="Next page"]').nth(1)
+            prev_button = page.locator('//button[@title="Previous page"]').nth(1)
+            
+            print("Waiting for pagination controls to be ready...")
+            
+            # Wait for pagination container to be stable
+            pagination_container.wait_for(state="visible", timeout=10000)
+            
+            # Verify initial button states
+            prev_button.wait_for(state="visible", timeout=10000)
+            next_button.wait_for(state="visible", timeout=10000)
+            
+            # Verify initial state
+            assert not prev_button.is_enabled(), "Previous button should be disabled on first page"
+            assert next_button.is_enabled(), "Next button should be enabled"
+            
+            # Navigate to next page with better waiting
+            print("Attempting to click Next button...")
+            self.wait_and_click_button(page, next_button, "Next page")
+            
+            # Wait for page to update and verify
+            page.wait_for_load_state("networkidle")
+            page.wait_for_timeout(1000)  # Additional wait for UI updates
+            
+            # Verify page updated to page 2
+            current_page_info = pagination_container.locator("div.text-sm.font-medium.text-gray-900:has-text('Page')").first
+            current_page_info.wait_for(state="visible", timeout=10000)
+            
+            page_info_text = current_page_info.inner_text()
+            print(f"Current page info after clicking Next: {page_info_text}")
+            
+            match = re.match(r'Page (\d+) of (\d+)', page_info_text)
+            assert match, f"Could not parse page info: {page_info_text}"
+            
+            current_page = int(match.group(1))
+            assert current_page == 2, f"Should be on page 2 after clicking Next, but got page {current_page}"
+            
+            # Verify previous button is now enabled
+            prev_button.wait_for(state="enabled", timeout=5000)
+            assert prev_button.is_enabled(), "Previous button should be enabled after navigation"
+            
+            # Navigate back to first page with better waiting
+            print("Attempting to click Previous button...")
+            self.wait_and_click_button(page, prev_button, "Previous page")
+            
+            # Verify back on first page
+            page.wait_for_load_state("networkidle")
+            current_page_info = pagination_container.locator("div.text-sm.font-medium.text-gray-900:has-text('Page')").first
+            current_page_info.wait_for(state="visible", timeout=10000)
+            
+            page_info_text = current_page_info.inner_text()
+            print(f"Current page info after clicking Previous: {page_info_text}")
+            
+            match = re.match(r'Page (\d+) of (\d+)', page_info_text)
+            assert match, f"Could not parse page info: {page_info_text}"
+            
+            current_page = int(match.group(1))
+            assert current_page == 1, f"Should be back on page 1 after clicking Previous, but got page {current_page}"
+                
+        except Exception as e:
+            # Take screenshot on failure
+            screenshot = page.screenshot(full_page=True)
+            print(f"Test failed with error: {str(e)}")
+            print(f"Page URL: {page.url}")
+            print("Screenshot taken")
             raise
     
     def test_pagination_with_no_data(self, page: Page):

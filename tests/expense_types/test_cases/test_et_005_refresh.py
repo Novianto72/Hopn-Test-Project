@@ -36,7 +36,7 @@ class TestRefreshExpenseTypes:
             page.wait_for_load_state("networkidle")
             
             # Verify the page URL is still the expense types page
-            expect(page).to_have_url(f"{URLS['HOME']}expense-type")
+            expect(page).to_have_url(f"{URLS['HOME']}/expense-type")
             
             # Verify the refresh button is still visible
             expect(refresh_button).to_be_visible()

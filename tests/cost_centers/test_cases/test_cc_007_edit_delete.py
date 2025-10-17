@@ -33,10 +33,13 @@ class TestEditDeleteOptions:
         """TC-EDT-001: Verify triple-dot menu has edit and delete options."""
         menu_options = self.test_data["menu_options"]
         
-        # Get the first row's triple dot menu button
-        triple_dot_button = self.page.locator(
-            "button[aria-haspopup='menu']:has(svg.lucide-ellipsis)"
-        ).first
+        # Get the first row's triple dot menu button using specific XPath
+        triple_dot_button = self.page.locator('//td[@data-slot="table-cell"]/button').first
+        print(f"Found {triple_dot_button.count()} triple dot buttons on the page")
+        
+        # Wait for the button to be visible and clickable
+        triple_dot_button.wait_for(state='visible', timeout=10000)
+        print("Triple dot button is visible, attempting to click...")
         
         # Click the triple dot button to open the menu
         triple_dot_button.click()
@@ -68,10 +71,13 @@ class TestEditDeleteOptions:
 
     def test_edit_option_clickable(self):
         """Verify that the Edit option in the menu is clickable."""
-        # Get the first row's triple dot menu button
-        triple_dot_button = self.page.locator(
-            "button[aria-haspopup='menu']:has(svg.lucide-ellipsis)"
-        ).first
+        # Get the first row's triple dot menu button using specific XPath
+        triple_dot_button = self.page.locator('//td[@data-slot="table-cell"]/button').first
+        print(f"Found {triple_dot_button.count()} triple dot buttons on the page")
+        
+        # Wait for the button to be visible and clickable
+        triple_dot_button.wait_for(state='visible', timeout=10000)
+        print("Triple dot button is visible, attempting to click...")
         
         # Click the triple dot button to open the menu
         triple_dot_button.click()
@@ -217,33 +223,40 @@ class TestEditDeleteOptions:
             time.sleep(3)
             modal.get_by_role("button", name="Add cost center").click()
             
-            # Wait for the success message and refresh
-            self.page.wait_for_selector(f"text='{test_cost_center_name}'", timeout=10000)
+            # Wait for the modal to close
+            modal.wait_for(state='hidden', timeout=5000)
             print(f"✓ Created test cost center: {test_cost_center_name}")
             
-            # Verify the new cost center is in the list (should be first)
-            first_row = self.page.locator("tbody tr").first
-            first_row_name = first_row.locator("td:first-child div").text_content().strip()
+            # Initialize the CostCentersPage to use its methods
+            cost_centers_page = CostCentersPage(self.page)
             
-            if first_row_name != test_cost_center_name:
-                # If not first, try to find it in the table
-                rows = self.page.locator("tbody tr").all()
-                found = False
-                for row in rows:
-                    if row.locator("td:first-child div").text_content().strip() == test_cost_center_name:
-                        found = True
-                        # Move the row to the top by clicking on it (if needed)
-                        row.click()
-                        break
-                
-                if not found:
-                    raise AssertionError(f"Test cost center '{test_cost_center_name}' not found in the list")
+            # Search for the created cost center
+            print(f"Searching for cost center: {test_cost_center_name}")
+            cost_centers_page.search(test_cost_center_name)
+            
+            # Wait for search results to update
+            self.page.wait_for_timeout(2000)  # Small delay for search results
+            
+            # Verify the cost center is found in search results
+            search_result = self.page.locator(f'//td[@data-slot="table-cell"]/div[text()="{test_cost_center_name}"]')
+            search_result.wait_for(state='visible', timeout=10000)
+            print(f"✓ Found cost center in search results: {test_cost_center_name}")
+            
+            # Get the row containing our cost center
+            cost_center_row = self.page.locator(f"//div[contains(@class, 'font-medium')][contains(text(), '{test_cost_center_name}')]//ancestor::tr").first
+            if not cost_center_row.is_visible():
+                raise AssertionError(f"Cost center row not found after search: {test_cost_center_name}")
             
             print("\n--- Starting deletion test ---")
             
-            # Click the triple dot menu for the first row
-            first_row = self.page.locator("tbody tr").first
-            first_row.locator("button[aria-haspopup='menu']").click()
+            # Click the triple dot menu for the found row
+            triple_dot_button = cost_center_row.locator('//td[@data-slot="table-cell"]/button')
+            print(f"Found {self.page.locator('//td[@data-slot="table-cell"]/button').count()} triple dot buttons on the page")
+            
+            # Wait for the button to be visible and clickable
+            triple_dot_button.wait_for(state='visible', timeout=10000)
+            print("Triple dot button is visible, attempting to click...")
+            triple_dot_button.click()
             
             # Set up a dialog handler to accept the confirmation
             def handle_dialog(dialog):
@@ -261,12 +274,14 @@ class TestEditDeleteOptions:
             
             print("✓ Deletion confirmed via dialog")
             
-            # Verify the cost center is no longer in the list
-            first_row_after_delete = self.page.locator("tbody tr").first
-            new_first_row_name = first_row_after_delete.locator("td:first-child div").text_content().strip()
+            # Verify the cost center is no longer in the search results
+            # Wait for the table to update after deletion
+            self.page.wait_for_timeout(1000)  # Small delay for the update
             
-            assert new_first_row_name != test_cost_center_name, \
-                f"Cost center '{test_cost_center_name}' still appears in the list after deletion"
+            # Check if the cost center still exists in the search results
+            deleted_cost_center = self.page.locator(f'//td[@data-slot="table-cell"]/div[text()="{test_cost_center_name}"]')
+            assert not deleted_cost_center.is_visible(timeout=5000), \
+                f"Cost center '{test_cost_center_name}' still appears in the search results after deletion"
                 
             print(f"✓ Verified cost center '{test_cost_center_name}' was successfully deleted")
             

@@ -17,14 +17,14 @@ def random_number(length: int) -> str:
 # Common test data
 # Credentials for tests with existing data
 credentials = {
-    "email": "noviantotito72+test12@gmail.com",
-    "password": "Test@12"
+    "email": "mamado.2000@gmail.com",
+    "password": "Abc@1234"
 }
 
 # Credentials for empty state tests
 empty_state_credentials = {
-    "email": "noviantotito72+test11@gmail.com",
-    "password": "Test@11"
+    "email": "mamado.2000@gmail.com",
+    "password": "Abc@1234"
 }
 
 # Credentials for non-empty state tests (same as default credentials for now)
@@ -112,9 +112,9 @@ refresh_test_data = {
         "counter_refresh": 10000  # 10 seconds timeout for counter refresh
     },
     "expected_elements": [
-        "h1:has-text('Cost Centers')",
-        "div.text-2xl",
-        "button:has-text('Refresh')"
+        "h1:has-text('Cost Centers')",  # This is good - matches the main heading
+        "//div[contains(@class, 'text-2xl')]",  # More specific XPath for the counter
+        "//button[.//*[contains(@class, 'lucide-refresh')]]"  # Find button with refresh icon
     ]
 }
 

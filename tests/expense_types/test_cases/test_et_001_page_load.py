@@ -1,8 +1,7 @@
 import pytest
 from playwright.sync_api import expect
 from pages.expense_types.expense_types_page import ExpenseTypesPage
-
-EXPENSE_TYPES_URL = "https://wize-invoice-dev-front.octaprimetech.com/expense-type"
+from tests.config.test_config import URLS
 
 class TestExpenseTypesPageLoad:
     def test_page_loads_correctly(self, logged_in_page):
@@ -10,7 +9,7 @@ class TestExpenseTypesPageLoad:
         page = logged_in_page
         expense_types_page = ExpenseTypesPage(page)
         
-        # Navigate to the expense types page
+        # Navigate to expense types page
         expense_types_page.navigate()
         
         # Verify the page title

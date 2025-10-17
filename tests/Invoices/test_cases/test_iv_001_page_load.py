@@ -1,8 +1,7 @@
 import pytest
 from playwright.sync_api import expect
 from tests.Invoices.page_object.invoices_page import InvoicesPage
-
-INVOICES_URL = "https://wize-invoice-dev-front.octaprimetech.com/invoices"
+from tests.config.test_config import URLS
 
 class TestInvoicesPageLoad:
     def test_page_loads_correctly(self, logged_in_page):
@@ -11,7 +10,7 @@ class TestInvoicesPageLoad:
         invoices_page = InvoicesPage(page)
         
         # Navigate to the invoices page
-        invoices_page.navigate()
+        invoices_page.navigate(URLS["INVOICES"])
         
         # Verify the page title
         expect(page).to_have_title("Invoice AI")

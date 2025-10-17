@@ -1,7 +1,17 @@
+import os
+import sys
 import pytest
 from playwright.sync_api import Page, expect
-from pages.cost_centers.cost_centers_page import CostCentersPage
+
+# Add the project root to the Python path
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(0, project_root)
+
+# Now import the URLS
 from tests.config.test_config import URLS
+
+# Import other modules
+from pages.cost_centers.cost_centers_page import CostCentersPage
 from dataInput.cost_centers.test_data import credentials, refresh_test_data
 
 # Register the custom mark to avoid the warning
@@ -13,22 +23,33 @@ def pytest_configure(config):
 
 @pytest.mark.cost_centers
 class TestRefreshButton:
-    # Get test data from centralized location
+    # Class variables
     test_data = refresh_test_data
     credentials = credentials
+    urls = URLS  # Store URLS as a class variable
     
     def test_refresh_button(self, page: Page):
         """CC-005: Verify that the 'Refresh' button reloads the cost centers list"""
         try:
+            # Debug: Print the current working directory and URLS
+            print(f"Current working directory: {os.getcwd()}")
+            print(f"URLS: {self.urls}")
+            
             # Login
-            page.goto(URLS["LOGIN"])
+            login_url = self.urls["LOGIN"]
+            print(f"Navigating to login URL: {login_url}")
+            page.goto(login_url)
+            
+            # Fill in credentials and login
             page.get_by_label("Email").fill(self.credentials["email"])
             page.get_by_label("Password").fill(self.credentials["password"])
             page.get_by_role("button", name="Login").click()
-            page.wait_for_url(URLS["DASHBOARD"])
+            page.wait_for_url(self.urls["DASHBOARD"])
             
             # Navigate to cost centers page
-            page.goto(URLS["COST_CENTERS"])
+            cost_centers_url = self.urls["COST_CENTERS"]
+            print(f"Navigating to cost centers URL: {cost_centers_url}")
+            page.goto(cost_centers_url)
             
             # Wait for cost centers page to load using test data selectors
             for selector in self.test_data["expected_elements"]:
@@ -65,7 +86,8 @@ class TestRefreshButton:
                     raise AssertionError(f"{counter_name} counter should be an integer, got: {counter_value}")
             
             # Verify the page URL
-            assert page.url == "https://wize-invoice-dev-front.octaprimetech.com/cost-center", "Page URL should be cost centers page"
+            from tests.config.test_config import URLS
+            assert page.url == URLS["COST_CENTERS"], f"Page URL should be {URLS['COST_CENTERS']}"
             
             # Verify the refresh button is still visible
             refresh_button.wait_for(state="visible", timeout=5000)
@@ -77,4 +99,5 @@ class TestRefreshButton:
             raise
         
         # Verify page is still on the same URL
-        expect(page).to_have_url("https://wize-invoice-dev-front.octaprimetech.com/cost-center")
+        from tests.config.test_config import URLS
+        expect(page).to_have_url(URLS["COST_CENTERS"])
