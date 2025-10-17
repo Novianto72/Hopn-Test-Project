@@ -8,7 +8,6 @@ A comprehensive end-to-end test automation framework built with Playwright for t
 - **Python**: Primary programming language
 - **Pytest**: Test framework for writing and running tests
 - **Page Object Model (POM)**: Design pattern for better test maintenance
-- **BDD**: Behavior-Driven Development with Gherkin syntax
 - **Git**: Version control
 
 ## 🧪 Key Features Tested
